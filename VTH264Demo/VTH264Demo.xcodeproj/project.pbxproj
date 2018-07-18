@@ -13,6 +13,9 @@
 		73B55D5E20FEC8F5008C3DE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 73B55D5D20FEC8F5008C3DE6 /* Assets.xcassets */; };
 		73B55D6120FEC8F5008C3DE6 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 73B55D5F20FEC8F5008C3DE6 /* LaunchScreen.storyboard */; };
 		73B55D6420FEC8F5008C3DE6 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D6320FEC8F5008C3DE6 /* main.m */; };
+		73B55D7120FECA89008C3DE6 /* AAPLEAGLLayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D6D20FECA89008C3DE6 /* AAPLEAGLLayer.m */; };
+		73B55D7220FECA89008C3DE6 /* H264HwEncoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D6E20FECA89008C3DE6 /* H264HwEncoder.m */; };
+		73B55D7320FECA89008C3DE6 /* H264HwDecoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D7020FECA89008C3DE6 /* H264HwDecoder.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +29,13 @@
 		73B55D6020FEC8F5008C3DE6 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		73B55D6220FEC8F5008C3DE6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		73B55D6320FEC8F5008C3DE6 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		73B55D6B20FECA89008C3DE6 /* H264HwEncoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = H264HwEncoder.h; sourceTree = "<group>"; };
+		73B55D6C20FECA89008C3DE6 /* H264HwDecoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = H264HwDecoder.h; sourceTree = "<group>"; };
+		73B55D6D20FECA89008C3DE6 /* AAPLEAGLLayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AAPLEAGLLayer.m; sourceTree = "<group>"; };
+		73B55D6E20FECA89008C3DE6 /* H264HwEncoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264HwEncoder.m; sourceTree = "<group>"; };
+		73B55D6F20FECA89008C3DE6 /* AAPLEAGLLayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AAPLEAGLLayer.h; sourceTree = "<group>"; };
+		73B55D7020FECA89008C3DE6 /* H264HwDecoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264HwDecoder.m; sourceTree = "<group>"; };
+		73B55D7420FECAB7008C3DE6 /* NaluConfig.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NaluConfig.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +68,8 @@
 		73B55D5320FEC8F3008C3DE6 /* VTH264Demo */ = {
 			isa = PBXGroup;
 			children = (
+				73B55D7420FECAB7008C3DE6 /* NaluConfig.h */,
+				73B55D6A20FECA89008C3DE6 /* H264lib */,
 				73B55D5420FEC8F4008C3DE6 /* AppDelegate.h */,
 				73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */,
 				73B55D5720FEC8F4008C3DE6 /* ViewController.h */,
@@ -69,6 +81,19 @@
 				73B55D6320FEC8F5008C3DE6 /* main.m */,
 			);
 			path = VTH264Demo;
+			sourceTree = "<group>";
+		};
+		73B55D6A20FECA89008C3DE6 /* H264lib */ = {
+			isa = PBXGroup;
+			children = (
+				73B55D6B20FECA89008C3DE6 /* H264HwEncoder.h */,
+				73B55D6E20FECA89008C3DE6 /* H264HwEncoder.m */,
+				73B55D6C20FECA89008C3DE6 /* H264HwDecoder.h */,
+				73B55D7020FECA89008C3DE6 /* H264HwDecoder.m */,
+				73B55D6F20FECA89008C3DE6 /* AAPLEAGLLayer.h */,
+				73B55D6D20FECA89008C3DE6 /* AAPLEAGLLayer.m */,
+			);
+			path = H264lib;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -142,7 +167,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */,
+				73B55D7320FECA89008C3DE6 /* H264HwDecoder.m in Sources */,
+				73B55D7220FECA89008C3DE6 /* H264HwEncoder.m in Sources */,
 				73B55D6420FEC8F5008C3DE6 /* main.m in Sources */,
+				73B55D7120FECA89008C3DE6 /* AAPLEAGLLayer.m in Sources */,
 				73B55D5620FEC8F4008C3DE6 /* AppDelegate.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -220,7 +248,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 11.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -272,7 +300,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 11.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
@@ -286,6 +314,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = B5Y4Q4J39L;
 				INFOPLIST_FILE = VTH264Demo/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -303,6 +332,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = B5Y4Q4J39L;
 				INFOPLIST_FILE = VTH264Demo/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
