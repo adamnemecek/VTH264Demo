@@ -20,9 +20,11 @@
 
 @property (nonatomic, weak) id<H264HwDecoderDelegate> delegate;
 @property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
+@property (nonatomic, assign) BOOL enableAsynDecompression;
 
 - (BOOL)initH264Decoder;
 - (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize;
-- (void)EndDecode;
+- (void)EndDecoder;
+- (BOOL)resetH264Decoder;
 
 @end

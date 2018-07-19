@@ -84,8 +84,12 @@
         status = CMSampleBufferCreateReady(kCFAllocatorDefault, blockBuffer, decoderFormatDescription, 1, 0, NULL, 1, sampleSizeArray, &sampleBuffer);
         if (status == kCMBlockBufferNoErr && sampleBuffer)
         {
-            //
-            VTDecodeFrameFlags flags = 0;//kVTDecodeFrame_EnableAsynchronousDecompression;
+            VTDecodeFrameFlags flags;
+            if (self.enableAsynDecompression)
+            {
+                flags = kVTDecodeFrame_EnableAsynchronousDecompression;
+            }
+            
             VTDecodeInfoFlags flagOut = 0;
             
             decodeStatus = VTDecompressionSessionDecodeFrame(deocdingSession, sampleBuffer, flags, &outputPixelBuffer, &flagOut);
@@ -100,6 +104,11 @@
             else if(decodeStatus != noErr)
             {
                 NSLog(@"VT: decode failed status=%d", (int)decodeStatus);
+            }
+            
+            if (self.enableAsynDecompression)
+            {
+                decodeStatus = VTDecompressionSessionWaitForAsynchronousFrames(deocdingSession);
             }
             
             CFRelease(sampleBuffer);
@@ -165,9 +174,21 @@
     }
 }
 
-- (void)EndDecode
+- (void)EndDecoder
 {
-    
+    if (deocdingSession)
+    {
+        VTDecompressionSessionWaitForAsynchronousFrames(deocdingSession);
+        VTDecompressionSessionInvalidate(deocdingSession);
+        CFRelease(deocdingSession);
+        deocdingSession = nil;
+    }
+}
+
+- (BOOL)resetH264Decoder
+{
+    [self EndDecoder];
+    return [self initH264Decoder];
 }
 
 #pragma - mark - VTDecompressionOutputCallback

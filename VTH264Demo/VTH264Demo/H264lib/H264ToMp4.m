@@ -60,6 +60,18 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
             
         NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.srcFilePath];
         NSData *allData = [fileHandle readDataToEndOfFile];
+        if (allData.length == 0)
+        {
+            NSLog(@"找不到mp4文件");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                
+                if (handler)
+                {
+                    handler();
+                }
+            });
+            return;
+        }
         
         NaluUnit naluUnit;
         NSData *sps = nil;

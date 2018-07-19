@@ -33,6 +33,7 @@
 @property (nonatomic, assign) BOOL useOpenGLPlayLayer;
 @property (nonatomic, strong) H264HwEncoder *h264Encoder;
 @property (nonatomic, strong) H264HwDecoder *h264Decoder;
+@property (nonatomic, assign) BOOL useasynDecode;
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
@@ -50,6 +51,7 @@
 @property (nonatomic, strong) UIButton *fileDisplayBtn;
 @property (nonatomic, strong) UIButton *toMp4Btn;
 @property (nonatomic, strong) UIButton *playMp4Btn;
+@property (nonatomic, strong) UIButton *asynDecodeBtn;
 
 @end
 
@@ -86,9 +88,11 @@
     self.h264Encoder.delegate = self;
     self.h264Encoder.dataCallbackQueue = self.dataProcesQueue;
     
+    self.useasynDecode = NO;
     self.h264Decoder = [[H264HwDecoder alloc] init];
     self.h264Decoder.delegate = self;
     self.h264Decoder.dataCallbackQueue = self.dataProcesQueue;
+    self.h264Decoder.enableAsynDecompression = self.useasynDecode;
     
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
@@ -146,7 +150,17 @@
     [self.view addSubview:fileDisplayBtn];
     self.fileDisplayBtn = fileDisplayBtn;
     
-    UIButton *toMp4Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 3 + btnWidth * 2, btnTop * 2 + btnHeight, btnWidth, btnHeight)];
+    UIButton *asynDecodeBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 3 + btnWidth * 2, btnTop * 2 + btnHeight, btnWidth, btnHeight)];
+    [asynDecodeBtn setTitle:@"异步解码" forState:UIControlStateNormal];
+    [asynDecodeBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [asynDecodeBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [asynDecodeBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [asynDecodeBtn addTarget:self action:@selector(asynDecodeBtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    asynDecodeBtn.selected = NO;
+    [self.view addSubview:asynDecodeBtn];
+    self.asynDecodeBtn = asynDecodeBtn;
+    
+    UIButton *toMp4Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 3 + btnHeight * 2, btnWidth, btnHeight)];
     [toMp4Btn setTitle:@"H264转MP4" forState:UIControlStateNormal];
     [toMp4Btn setBackgroundColor:[UIColor lightGrayColor]];
     [toMp4Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
@@ -156,7 +170,7 @@
     [self.view addSubview:toMp4Btn];
     self.toMp4Btn = toMp4Btn;
     
-    UIButton *playMp4Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 3 + btnHeight * 2, btnWidth, btnHeight)];
+    UIButton *playMp4Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 2 + btnWidth, btnTop * 3 + btnHeight * 2, btnWidth, btnHeight)];
     [playMp4Btn setTitle:@"播放MP4" forState:UIControlStateNormal];
     [playMp4Btn setBackgroundColor:[UIColor lightGrayColor]];
     [playMp4Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
@@ -319,6 +333,22 @@
             [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
         }
     });
+}
+
+- (void)asynDecodeBtnClick:(id)sender
+{
+    self.useasynDecode = !self.useasynDecode;
+    if (self.useasynDecode)
+    {
+        [self.asynDecodeBtn setTitle:@"同步解码" forState:UIControlStateNormal];
+    }
+    else
+    {
+        [self.asynDecodeBtn setTitle:@"异步解码" forState:UIControlStateNormal];
+    }
+    
+    self.h264Decoder.enableAsynDecompression = self.useasynDecode;
+    [self.h264Decoder resetH264Decoder];
 }
 
 - (void)toMp4BtnClick:(id)sender
