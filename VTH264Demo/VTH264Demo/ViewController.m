@@ -25,9 +25,11 @@
 @property (nonatomic, strong) AVCaptureDevice *cameraDeviceFront;
 @property (nonatomic, assign) BOOL cameraDeviceIsFront;
 @property (nonatomic, strong) AVCaptureVideoPreviewLayer *recordLayer;
+@property (nonatomic, strong) AVSampleBufferDisplayLayer *sampleBufferDisplayLayer;
+@property (nonatomic, strong) AAPLEAGLLayer *openGLPlayLayer;
+@property (nonatomic, assign) BOOL useOpenGLPlayLayer;
 @property (nonatomic, strong) H264HwEncoder *h264Encoder;
 @property (nonatomic, strong) H264HwDecoder *h264Decoder;
-@property (nonatomic, strong) AAPLEAGLLayer *playLayer;
 @property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureFrameCount;
 @property (nonatomic, assign) NSUInteger encodeFrameCount;
@@ -74,10 +76,10 @@
     self.h264Decoder.dataCallbackQueue = self.dataProcesQueue;
     
     CGFloat btnTop = 50;
-    CGFloat btnWidth = 100;
+    CGFloat btnWidth = 60;
     CGFloat btnHeight = 40;
     CGSize size = [UIScreen mainScreen].bounds.size;
-    CGFloat btnX = (size.width - btnWidth * 3) / 4;
+    CGFloat btnX = (size.width - btnWidth * 4) / 5;
     
     UIButton *startBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop, btnWidth, btnHeight)];
     [startBtn setTitle:@"打开" forState:UIControlStateNormal];
@@ -103,12 +105,29 @@
     showFileBtn.selected = NO;
     [self.view addSubview:showFileBtn];
     
+    UIButton *displayBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 4 + btnWidth * 3, btnTop, btnWidth, btnHeight)];
+    [displayBtn setTitle:@"预览" forState:UIControlStateNormal];
+    [displayBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [displayBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [displayBtn addTarget:self action:@selector(displayBtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    displayBtn.selected = NO;
+    [self.view addSubview:displayBtn];
+    
     self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
     [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
     self.recordLayer.frame = CGRectMake(0, btnTop + btnHeight + 10, size.width, (size.height - (btnTop + btnHeight + 10)) / 2);
     
-    self.playLayer = [[AAPLEAGLLayer alloc] initWithFrame:CGRectMake(0, self.recordLayer.frame.origin.y + self.recordLayer.frame.size.height, self.recordLayer.frame.size.width, self.recordLayer.frame.size.height)];
-    self.playLayer.backgroundColor = [UIColor blackColor].CGColor;
+    self.useOpenGLPlayLayer = YES;
+    
+    //OpenGL代码来渲染
+    self.openGLPlayLayer = [[AAPLEAGLLayer alloc] initWithFrame:CGRectMake(0, self.recordLayer.frame.origin.y + self.recordLayer.frame.size.height, self.recordLayer.frame.size.width, self.recordLayer.frame.size.height)];
+    self.openGLPlayLayer.backgroundColor = [UIColor blackColor].CGColor;
+    
+    //用系统自带控件渲染
+    self.sampleBufferDisplayLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    self.sampleBufferDisplayLayer.frame = CGRectMake(0, self.recordLayer.frame.origin.y + self.recordLayer.frame.size.height, self.recordLayer.frame.size.width, self.recordLayer.frame.size.height);
+    self.sampleBufferDisplayLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    self.sampleBufferDisplayLayer.opaque = YES;
 }
 
 - (void)startBtnClick:(UIButton *)btn
@@ -143,12 +162,13 @@
         self.cameraDeviceIsFront = !self.cameraDeviceIsFront;
         [self stopCamera];
         [self initCamera:self.cameraDeviceIsFront];
+        
         CGRect frame = self.recordLayer.frame;
         self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
         [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
         self.recordLayer.frame = frame;
+
         [self startCamera];
-        
         self.captureFrameCount = 0;
     }
 }
@@ -179,6 +199,22 @@
         [self presentViewController:alert animated:YES completion:^{
             
         }];
+    }
+}
+
+- (void)displayBtnClick:(id)sender
+{
+    [self.openGLPlayLayer removeFromSuperlayer];
+    [self.sampleBufferDisplayLayer removeFromSuperlayer];
+    
+    self.useOpenGLPlayLayer = !self.useOpenGLPlayLayer;
+    if (self.useOpenGLPlayLayer)
+    {
+        [self.view.layer addSublayer:self.openGLPlayLayer];
+    }
+    else
+    {
+        [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
     }
 }
 
@@ -241,14 +277,96 @@
 {
     [self.captureSession startRunning];
     [self.view.layer addSublayer:self.recordLayer];
-    [self.view.layer addSublayer:self.playLayer];
+    if (self.useOpenGLPlayLayer)
+    {
+        [self.view.layer addSublayer:self.openGLPlayLayer];
+    }
+    else
+    {
+        [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
+    }
 }
 
 - (void)stopCamera
 {
     [self.captureSession stopRunning];
     [self.recordLayer removeFromSuperlayer];
-    [self.playLayer removeFromSuperlayer];
+    [self.openGLPlayLayer removeFromSuperlayer];
+    [self.sampleBufferDisplayLayer removeFromSuperlayer];
+}
+
+#pragma - mark - Use AVSampleBufferDisplayLayer
+//把pixelBuffer包装成samplebuffer送给displayLayer
+- (void)dispatchPixelBuffer:(CVPixelBufferRef)pixelBuffer
+{
+    if (!pixelBuffer)
+    {
+        return;
+    }
+    
+    //不设置具体时间信息
+    CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
+    //获取视频信息
+    CMVideoFormatDescriptionRef videoInfo = NULL;
+    OSStatus result = CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixelBuffer, &videoInfo);
+    if (result != 0 || videoInfo == nil)
+    {
+        return;
+    }
+    
+    CMSampleBufferRef sampleBuffer = NULL;
+    result = CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, true, NULL, NULL, videoInfo, &timing, &sampleBuffer);
+    if (result != 0 || sampleBuffer == nil)
+    {
+        return;
+    }
+
+    CFRelease(pixelBuffer);
+    CFRelease(videoInfo);
+    
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
+    CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+    CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+    [self enqueueSampleBuffer:sampleBuffer toLayer:self.sampleBufferDisplayLayer];
+    CFRelease(sampleBuffer);
+}
+
+- (void)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer toLayer:(AVSampleBufferDisplayLayer *)layer
+{
+    if (sampleBuffer)
+    {
+        CFRetain(sampleBuffer);
+        [layer enqueueSampleBuffer:sampleBuffer];
+        CFRelease(sampleBuffer);
+        if (layer.status == AVQueuedSampleBufferRenderingStatusFailed)
+        {
+            NSLog(@"ERROR: %@", layer.error);
+        }
+        else
+        {
+            NSLog(@"STATUS: %i", (int)layer.status);
+        }
+    }
+    else
+    {
+        NSLog(@"ignore null samplebuffer");
+    }
+}
+
+#pragma - mark - Use OpenGLPlayLayer
+
+- (void)dispatchImageBuffer:(CVImageBufferRef)imageBuffer
+{
+    if (!imageBuffer)
+    {
+        return;
+    }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        self.openGLPlayLayer.pixelBuffer = imageBuffer;
+        CVPixelBufferRelease(imageBuffer);
+    });
 }
 
 #pragma - mark - AVCaptureVideoDataOutputSampleBufferDelegate
@@ -324,11 +442,14 @@
 {
     if (imageBuffer)
     {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            
-            self.playLayer.pixelBuffer = imageBuffer;
-            CVPixelBufferRelease(imageBuffer);
-        });
+        if (self.useOpenGLPlayLayer)
+        {
+            [self dispatchImageBuffer:imageBuffer];
+        }
+        else
+        {
+            [self dispatchPixelBuffer:imageBuffer];
+        }
     }
 }
 
