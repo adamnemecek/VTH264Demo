@@ -80,6 +80,7 @@
 {
     if (encodingSession)
     {
+        VTCompressionSessionCompleteFrames(encodingSession, kCMTimeInvalid);
         VTCompressionSessionInvalidate(encodingSession);
         CFRelease(encodingSession);
         encodingSession = nil;

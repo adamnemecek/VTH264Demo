@@ -17,17 +17,18 @@
 
 #define H264_FILE_NAME      @"test.h264"
 
-@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate>
+@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
 @property (nonatomic, strong) AVCaptureSession *captureSession;
 @property (nonatomic, strong) AVCaptureConnection *connectionVideo;
-@property (nonatomic, strong) AVCaptureDevice *cameraDeviceB;
-@property (nonatomic, strong) AVCaptureDevice *cameraDeviceF;
+@property (nonatomic, strong) AVCaptureDevice *cameraDeviceBack;
+@property (nonatomic, strong) AVCaptureDevice *cameraDeviceFront;
+@property (nonatomic, assign) BOOL cameraDeviceIsFront;
 @property (nonatomic, strong) AVCaptureVideoPreviewLayer *recordLayer;
-@property (nonatomic, assign) BOOL cameraDeviceIsF;
 @property (nonatomic, strong) H264HwEncoder *h264Encoder;
 @property (nonatomic, strong) H264HwDecoder *h264Decoder;
 @property (nonatomic, strong) AAPLEAGLLayer *playLayer;
+@property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureFrameCount;
 @property (nonatomic, assign) NSUInteger encodeFrameCount;
 @property (nonatomic, strong) NSString *h264File;
@@ -45,6 +46,9 @@
     self.view.frame = [UIScreen mainScreen].bounds;
     self.view.backgroundColor = [UIColor whiteColor];
     
+    [GCDWebServer setLogLevel:4];
+    
+    self.dataProcesQueue = dispatch_queue_create("com.pingan.videocoder.queue", DISPATCH_QUEUE_SERIAL);
     self.fileSize = CGSizeMake(h264outputWidth, h264outputHeight);
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -56,30 +60,19 @@
     NSLog( @"h264File at %@", self.h264File);
     self.fileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
     
-    self.cameraDeviceIsF = YES;
-    NSArray *videoDevices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
-    for (AVCaptureDevice *device in videoDevices)
-    {
-        if (device.position == AVCaptureDevicePositionFront)
-        {
-            self.cameraDeviceF = device;
-        }
-        else if(device.position == AVCaptureDevicePositionBack)
-        {
-            self.cameraDeviceB = device;
-        }
-    }
-    [self initCamera:self.cameraDeviceIsF];
+    self.cameraDeviceIsFront = NO;
+    [self initCamera:self.cameraDeviceIsFront];
     
     self.h264Encoder = [H264HwEncoder alloc];
     [self.h264Encoder initWithConfiguration];
     [self.h264Encoder initEncode:h264outputWidth height:h264outputHeight];
     self.h264Encoder.delegate = self;
-    self.h264Encoder.dataCallbackQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0);
+    self.h264Encoder.dataCallbackQueue = self.dataProcesQueue;
     
     self.h264Decoder = [[H264HwDecoder alloc] init];
     self.h264Decoder.delegate = self;
-
+    self.h264Decoder.dataCallbackQueue = self.dataProcesQueue;
+    
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
     CGFloat btnHeight = 40;
@@ -123,7 +116,10 @@
     btn.selected = !btn.selected;
     if (btn.selected == YES)
     {
+        [self.fileHandle closeFile];
+        self.fileHandle = nil;
         [[NSFileManager defaultManager] removeItemAtPath:self.h264File error:nil];
+        
         [[NSFileManager defaultManager] createFileAtPath:self.h264File contents:nil attributes:nil];
         self.fileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
         
@@ -133,20 +129,27 @@
     else
     {
         [self stopCamera];
-        
-        [self.fileHandle closeFile];
-        self.fileHandle = nil;
     }
+    
+    self.captureFrameCount = 0;
 }
 
 - (void)switchBtnClick:(UIButton *)btn
 {
     if (self.captureSession.isRunning == YES)
     {
-        self.cameraDeviceIsF = !self.cameraDeviceIsF;
+        NSLog(@"###############摄像头切换###############");
+        
+        self.cameraDeviceIsFront = !self.cameraDeviceIsFront;
         [self stopCamera];
-        [self initCamera:self.cameraDeviceIsF];
+        [self initCamera:self.cameraDeviceIsFront];
+        CGRect frame = self.recordLayer.frame;
+        self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
+        [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
+        self.recordLayer.frame = frame;
         [self startCamera];
+        
+        self.captureFrameCount = 0;
     }
 }
 
@@ -155,7 +158,7 @@
     [_webServer stop];
     _webServer = nil;
     _webServer = [[GCDWebUploader alloc] initWithUploadDirectory:NSHomeDirectory()];
-    //    _webServer.delegate = self;
+    _webServer.delegate = self;
     _webServer.allowHiddenItems = YES;
     if ([_webServer startWithPort:9090 bonjourName:@"VTToolbox"])
     {
@@ -181,17 +184,30 @@
 
 #pragma - mark - Camera
 
-- (void)initCamera:(BOOL)type
+- (void)initCamera:(BOOL)cameraDeviceIsFront
 {
+    NSArray *videoDevices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeVideo];
+    for (AVCaptureDevice *device in videoDevices)
+    {
+        if (device.position == AVCaptureDevicePositionFront)
+        {
+            self.cameraDeviceFront = device;
+        }
+        else if(device.position == AVCaptureDevicePositionBack)
+        {
+            self.cameraDeviceBack = device;
+        }
+    }
+    
     NSError *deviceError;
     AVCaptureDeviceInput *inputCameraDevice;
-    if (type == FALSE)
+    if (cameraDeviceIsFront == FALSE)
     {
-        inputCameraDevice = [AVCaptureDeviceInput deviceInputWithDevice:self.cameraDeviceB error:&deviceError];
+        inputCameraDevice = [AVCaptureDeviceInput deviceInputWithDevice:self.cameraDeviceBack error:&deviceError];
     }
     else
     {
-        inputCameraDevice = [AVCaptureDeviceInput deviceInputWithDevice:self.cameraDeviceF error:&deviceError];
+        inputCameraDevice = [AVCaptureDeviceInput deviceInputWithDevice:self.cameraDeviceFront error:&deviceError];
     }
     
     AVCaptureVideoDataOutput *outputVideoDevice = [[AVCaptureVideoDataOutput alloc] init];
@@ -200,16 +216,24 @@
     NSNumber *val = [NSNumber numberWithUnsignedInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange];
     NSDictionary *videoSettings = [NSDictionary dictionaryWithObject:val forKey:key];
     outputVideoDevice.videoSettings = videoSettings;
+    [outputVideoDevice setSampleBufferDelegate:self queue:self.dataProcesQueue];
     
-    [outputVideoDevice setSampleBufferDelegate:self queue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0)];
     self.captureSession = [[AVCaptureSession alloc] init];
     [self.captureSession addInput:inputCameraDevice];
     [self.captureSession addOutput:outputVideoDevice];
     [self.captureSession beginConfiguration];
-    
-    [self.captureSession setSessionPreset:[NSString stringWithString:AVCaptureSessionPreset1280x720]];
+    if (cameraDeviceIsFront == YES)
+    {
+//        self.captureSession.sessionPreset = AVCaptureSessionPresetMedium; //480 * 360
+//        self.captureSession.sessionPreset = AVCaptureSessionPresetLow; //192 * 144
+//        self.captureSession.sessionPreset = AVCaptureSessionPresetHigh; //1280 * 720
+        self.captureSession.sessionPreset = AVCaptureSessionPresetMedium;
+    }
+    else
+    {
+        self.captureSession.sessionPreset = AVCaptureSessionPresetHigh;
+    }
     self.connectionVideo = [outputVideoDevice connectionWithMediaType:AVMediaTypeVideo];
-    
     [self.captureSession commitConfiguration];
 }
 
@@ -232,9 +256,12 @@
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
 {
     CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    CVImageBufferRef cameraFrame = CMSampleBufferGetImageBuffer(sampleBuffer);
+    int bufferWidth = (int)CVPixelBufferGetWidth(cameraFrame);
+    int bufferHeight = (int)CVPixelBufferGetHeight(cameraFrame);
     
     self.captureFrameCount++;
-    NSLog(@"captureOutput captureFrameCount %@, currentTime %@, timescale %@", @(self.captureFrameCount), @(currentTime.value), @(currentTime.timescale));
+    NSLog(@"captureOutput captureFrameCount %@, currentTime %@, timescale %@, bufferWidth %@, bufferHeight %@", @(self.captureFrameCount), @(currentTime.value), @(currentTime.timescale), @(bufferWidth), @(bufferHeight));
     
     if (connection == self.connectionVideo)
     {
@@ -303,6 +330,23 @@
             CVPixelBufferRelease(imageBuffer);
         });
     }
+}
+
+#pragma - mark - GCDWebUploaderDelegate
+
+- (void)webUploader:(GCDWebUploader *)uploader didDownloadFileAtPath:(NSString *)path
+{
+    NSLog(@"webUploader didDownloadFileAtPath:%@", path);
+}
+
+- (void)webUploader:(GCDWebUploader *)uploader didUploadFileAtPath:(NSString *)path
+{
+    NSLog(@"webUploader didUploadFileAtPath:%@", path);
+}
+
+- (void)webUploader:(GCDWebUploader *)uploader didDeleteItemAtPath:(NSString *)path
+{
+    NSLog(@"webUploader didDeleteItemAtPath:%@", path);
 }
 
 @end

@@ -26,6 +26,12 @@
 
 - (BOOL)initH264Decoder
 {
+    //必须先获取到 sps 和 pps 才能创建解码器，否则无法解码后续的视频帧
+    if (_spsSize == 0 || _ppsSize == 0)
+    {
+        return NO;
+    }
+    
     if (deocdingSession)
     {
         return YES;
@@ -78,7 +84,8 @@
         status = CMSampleBufferCreateReady(kCFAllocatorDefault, blockBuffer, decoderFormatDescription, 1, 0, NULL, 1, sampleSizeArray, &sampleBuffer);
         if (status == kCMBlockBufferNoErr && sampleBuffer)
         {
-            VTDecodeFrameFlags flags = 0;// = kVTDecodeFrame_EnableAsynchronousDecompression;
+            //
+            VTDecodeFrameFlags flags = 0;//kVTDecodeFrame_EnableAsynchronousDecompression;
             VTDecodeInfoFlags flagOut = 0;
             
             decodeStatus = VTDecompressionSessionDecodeFrame(deocdingSession, sampleBuffer, flags, &outputPixelBuffer, &flagOut);
@@ -107,7 +114,6 @@
 - (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize
 {
     int nalu_type = (frame[4] & 0x1F);
-    CVPixelBufferRef pixelBuffer = NULL;
     uint32_t nalSize = (uint32_t)(frameSize - 4);
     uint8_t *pNalSize = (uint8_t*)(&nalSize);
     frame[0] = *(pNalSize + 3);
@@ -123,7 +129,7 @@
             NSLog(@"nalu_type:%d Nal type is IDR frame", nalu_type);  //关键帧
             if ([self initH264Decoder])
             {
-                pixelBuffer = [self decode:frame withSize:frameSize];
+                [self decode:frame withSize:frameSize];
             }
             break;
         }
@@ -151,7 +157,7 @@
             NSLog(@"nalu_type:%d is B/P frame", nalu_type);//其他帧
             if ([self initH264Decoder])
             {
-                pixelBuffer = [self decode:frame withSize:frameSize];
+                [self decode:frame withSize:frameSize];
             }
             break;
         }   
@@ -167,13 +173,21 @@
 
 void didDecompressH264(void *decompressionOutputRefCon, void *sourceFrameRefCon, OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef pixelBuffer, CMTime presentationTimeStamp, CMTime presentationDuration)
 {
+    if (!pixelBuffer)
+    {
+        return;
+    }
+    
     CVPixelBufferRef *outputPixelBuffer = (CVPixelBufferRef *)sourceFrameRefCon;
     *outputPixelBuffer = CVPixelBufferRetain(pixelBuffer);
     
     H264HwDecoder *decoder = (__bridge H264HwDecoder *)decompressionOutputRefCon;
     if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedData:)])
     {
-        [decoder.delegate getDecodedData:pixelBuffer];
+        dispatch_async(decoder.dataCallbackQueue, ^{
+            
+            [decoder.delegate getDecodedData:pixelBuffer];
+        });
     }
 }
 

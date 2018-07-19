@@ -19,6 +19,7 @@
 @interface H264HwDecoder : NSObject
 
 @property (nonatomic, weak) id<H264HwDecoderDelegate> delegate;
+@property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
 
 - (BOOL)initH264Decoder;
 - (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize;
