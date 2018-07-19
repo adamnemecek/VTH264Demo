@@ -11,11 +11,14 @@
 #import "NaluHelper.h"
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
+#import <AVKit/AVKit.h>
 #import "H264HwEncoder.h"
 #import "H264HwDecoder.h"
+#import "H264ToMp4.h"
 #import "GCDWebUploader.h"
 
 #define H264_FILE_NAME      @"test.h264"
+#define MP4_FILE_NAME       @"test.mp4"
 
 @interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
@@ -30,10 +33,13 @@
 @property (nonatomic, assign) BOOL useOpenGLPlayLayer;
 @property (nonatomic, strong) H264HwEncoder *h264Encoder;
 @property (nonatomic, strong) H264HwDecoder *h264Decoder;
+@property (nonatomic, strong) H264ToMp4 *h264MP4;
+@property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureFrameCount;
 @property (nonatomic, assign) NSUInteger encodeFrameCount;
 @property (nonatomic, strong) NSString *h264File;
+@property (nonatomic, strong) NSString *mp4File;
 @property (nonatomic, assign) CGSize fileSize;
 @property (nonatomic, strong) NSFileHandle *fileHandle;
 @property (nonatomic, strong) GCDWebUploader *webServer;
@@ -42,6 +48,8 @@
 @property (nonatomic, strong) UIButton *showFileBtn;
 @property (nonatomic, strong) UIButton *displayBtn;
 @property (nonatomic, strong) UIButton *fileDisplayBtn;
+@property (nonatomic, strong) UIButton *toMp4Btn;
+@property (nonatomic, strong) UIButton *playMp4Btn;
 
 @end
 
@@ -66,6 +74,8 @@
     [fileManager createFileAtPath:self.h264File contents:nil attributes:nil];
     NSLog( @"h264File at %@", self.h264File);
     self.fileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
+    
+    self.mp4File = [documentsDirectory stringByAppendingPathComponent:MP4_FILE_NAME];
     
     self.cameraDeviceIsFront = NO;
     [self initCamera:self.cameraDeviceIsFront];
@@ -117,7 +127,7 @@
     self.showFileBtn = showFileBtn;
     
     UIButton *displayBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 2 + btnHeight, btnWidth, btnHeight)];
-    [displayBtn setTitle:@"OpenGL预览" forState:UIControlStateNormal];
+    [displayBtn setTitle:@"系统预览" forState:UIControlStateNormal];
     [displayBtn setBackgroundColor:[UIColor lightGrayColor]];
     [displayBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
     [displayBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
@@ -136,10 +146,30 @@
     [self.view addSubview:fileDisplayBtn];
     self.fileDisplayBtn = fileDisplayBtn;
     
+    UIButton *toMp4Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 3 + btnWidth * 2, btnTop * 2 + btnHeight, btnWidth, btnHeight)];
+    [toMp4Btn setTitle:@"H264转MP4" forState:UIControlStateNormal];
+    [toMp4Btn setBackgroundColor:[UIColor lightGrayColor]];
+    [toMp4Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [toMp4Btn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [toMp4Btn addTarget:self action:@selector(toMp4BtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    toMp4Btn.selected = NO;
+    [self.view addSubview:toMp4Btn];
+    self.toMp4Btn = toMp4Btn;
+    
+    UIButton *playMp4Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 3 + btnHeight * 2, btnWidth, btnHeight)];
+    [playMp4Btn setTitle:@"播放MP4" forState:UIControlStateNormal];
+    [playMp4Btn setBackgroundColor:[UIColor lightGrayColor]];
+    [playMp4Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [playMp4Btn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [playMp4Btn addTarget:self action:@selector(playMp4BtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    playMp4Btn.selected = NO;
+    [self.view addSubview:playMp4Btn];
+    self.playMp4Btn = playMp4Btn;
+    
     //显示拍摄原有内容
     self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
     [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
-    self.recordLayer.frame = CGRectMake(0, btnHeight * 2 + btnTop * 3, size.width, (size.height - (btnHeight * 2 + btnTop * 3)) / 2);
+    self.recordLayer.frame = CGRectMake(0, btnHeight * 3 + btnTop * 4, size.width, (size.height - (btnHeight * 3 + btnTop * 4)) / 2);
     
     self.useOpenGLPlayLayer = YES;
     
@@ -289,6 +319,35 @@
             [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
         }
     });
+}
+
+- (void)toMp4BtnClick:(id)sender
+{
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize srcFilePath:self.h264File dstFilePath:self.mp4File];
+    UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
+    view.center = self.view.center;
+    [view setHidesWhenStopped:YES];
+    [self.view addSubview:view];
+    
+    [view startAnimating];
+    [_h264MP4 startWriteWithCompletionHandler:^{
+        
+        [view stopAnimating];
+    }];
+}
+
+- (void)playMp4BtnClick:(id)sender
+{
+    CGSize size = [UIScreen mainScreen].bounds.size;
+    self.avPlayerVC = [[AVPlayerViewController alloc] init];
+    self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.mp4File]];
+    self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
+    self.avPlayerVC.showsPlaybackControls = YES;
+    
+    [self presentViewController:self.avPlayerVC animated:YES completion:^{
+        
+        [self.avPlayerVC.player play];
+    }];
 }
 
 #pragma - mark - Camera

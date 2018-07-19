@@ -34,6 +34,7 @@
 		73C342F921001E910005BE62 /* GCDWebServerFileRequest.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C342E821001E910005BE62 /* GCDWebServerFileRequest.m */; };
 		73C342FC210021560005BE62 /* libxml2.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 73C342FB210021560005BE62 /* libxml2.2.tbd */; };
 		73C342FF21007B240005BE62 /* NaluHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C342FE21007B240005BE62 /* NaluHelper.m */; };
+		73C34302210088E20005BE62 /* H264ToMp4.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C34301210088E20005BE62 /* H264ToMp4.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -89,6 +90,8 @@
 		73C342FB210021560005BE62 /* libxml2.2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxml2.2.tbd; path = usr/lib/libxml2.2.tbd; sourceTree = SDKROOT; };
 		73C342FD21007B240005BE62 /* NaluHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NaluHelper.h; sourceTree = "<group>"; };
 		73C342FE21007B240005BE62 /* NaluHelper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NaluHelper.m; sourceTree = "<group>"; };
+		73C34300210088E20005BE62 /* H264ToMp4.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = H264ToMp4.h; sourceTree = "<group>"; };
+		73C34301210088E20005BE62 /* H264ToMp4.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264ToMp4.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -143,6 +146,8 @@
 		73B55D6A20FECA89008C3DE6 /* H264lib */ = {
 			isa = PBXGroup;
 			children = (
+				73C34300210088E20005BE62 /* H264ToMp4.h */,
+				73C34301210088E20005BE62 /* H264ToMp4.m */,
 				73C342FD21007B240005BE62 /* NaluHelper.h */,
 				73C342FE21007B240005BE62 /* NaluHelper.m */,
 				73B55D6B20FECA89008C3DE6 /* H264HwEncoder.h */,
@@ -322,6 +327,7 @@
 				73C342F721001E910005BE62 /* GCDWebServerMultiPartFormRequest.m in Sources */,
 				73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */,
 				73C342F321001E910005BE62 /* GCDWebServerFileResponse.m in Sources */,
+				73C34302210088E20005BE62 /* H264ToMp4.m in Sources */,
 				73B55D7320FECA89008C3DE6 /* H264HwDecoder.m in Sources */,
 				73C342EC21001E910005BE62 /* GCDWebDAVServer.m in Sources */,
 				73B55D7220FECA89008C3DE6 /* H264HwEncoder.m in Sources */,
