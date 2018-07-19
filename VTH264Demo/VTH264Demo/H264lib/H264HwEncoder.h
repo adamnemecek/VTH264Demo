@@ -25,5 +25,6 @@
 - (void)endEncode;
 
 @property (nonatomic, weak) id<H264HwEncoderDelegate> delegate;
+@property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
 
 @end

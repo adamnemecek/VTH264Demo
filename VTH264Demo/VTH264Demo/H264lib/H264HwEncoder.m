@@ -39,14 +39,16 @@
     }
     
     VTSessionSetProperty(encodingSession, kVTCompressionPropertyKey_RealTime, kCFBooleanTrue);
-    VTSessionSetProperty(encodingSession, kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_H264_Baseline_4_1);
+    VTSessionSetProperty(encodingSession, kVTCompressionPropertyKey_ProfileLevel, kVTProfileLevel_H264_Main_AutoLevel);
     
-    SInt32 bitRate = width * height * 50;  //越高效果越好, 帧数据越大
+    //越高效果越好, 帧数据越大
+    SInt32 bitRate = width * height * 50;
     CFNumberRef ref = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bitRate);
     VTSessionSetProperty(encodingSession, kVTCompressionPropertyKey_AverageBitRate, ref);
     CFRelease(ref);
 
-    int frameInterval = 10; //关键帧间隔, 越低效果越好, 帧数据越大
+    //关键帧间隔, 越低效果越好, 帧数据越大
+    int frameInterval = 10;
     CFNumberRef  frameIntervalRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &frameInterval);
     VTSessionSetProperty(encodingSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, frameIntervalRef);
     CFRelease(frameIntervalRef);
@@ -64,6 +66,8 @@
     self.frameCount++;
     CVImageBufferRef imageBuffer = (CVImageBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
     CMTime presentationTimeStamp = CMTimeMake(self.frameCount, 1000);
+    
+    //硬编码系统缺省都是异步执行
     VTEncodeInfoFlags flags;
     OSStatus statusCode = VTCompressionSessionEncodeFrame(encodingSession, imageBuffer, presentationTimeStamp, kCMTimeInvalid, NULL, NULL, &flags);
     if (statusCode != noErr)
@@ -132,7 +136,10 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
                 encoder.pps = [NSData dataWithBytes:pparameterSet length:pparameterSetSize];
                 if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getSpsPps:pps:)])
                 {
-                    [encoder.delegate getSpsPps:encoder.sps pps:encoder.pps];
+                    dispatch_async(encoder.dataCallbackQueue, ^{
+                        
+                        [encoder.delegate getSpsPps:encoder.sps pps:encoder.pps];
+                    });
                 }
             }
         }
@@ -154,7 +161,10 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
             NSData *data = [[NSData alloc] initWithBytes:(dataPointer + bufferOffset + AVCCHeaderLength) length:NALUnitLength];
             if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedData:isKeyFrame:)])
             {
-                [encoder.delegate getEncodedData:data isKeyFrame:keyframe];
+                dispatch_async(encoder.dataCallbackQueue, ^{
+                    
+                    [encoder.delegate getEncodedData:data isKeyFrame:keyframe];
+                });
             }
             bufferOffset += AVCCHeaderLength + NALUnitLength;
         }
