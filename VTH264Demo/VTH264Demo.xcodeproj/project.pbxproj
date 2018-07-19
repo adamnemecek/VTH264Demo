@@ -33,6 +33,7 @@
 		73C342F821001E910005BE62 /* GCDWebServerDataRequest.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C342E721001E910005BE62 /* GCDWebServerDataRequest.m */; };
 		73C342F921001E910005BE62 /* GCDWebServerFileRequest.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C342E821001E910005BE62 /* GCDWebServerFileRequest.m */; };
 		73C342FC210021560005BE62 /* libxml2.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 73C342FB210021560005BE62 /* libxml2.2.tbd */; };
+		73C342FF21007B240005BE62 /* NaluHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C342FE21007B240005BE62 /* NaluHelper.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -52,7 +53,6 @@
 		73B55D6E20FECA89008C3DE6 /* H264HwEncoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264HwEncoder.m; sourceTree = "<group>"; };
 		73B55D6F20FECA89008C3DE6 /* AAPLEAGLLayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AAPLEAGLLayer.h; sourceTree = "<group>"; };
 		73B55D7020FECA89008C3DE6 /* H264HwDecoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264HwDecoder.m; sourceTree = "<group>"; };
-		73B55D7420FECAB7008C3DE6 /* NaluConfig.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NaluConfig.h; sourceTree = "<group>"; };
 		73C342C421001E910005BE62 /* GCDWebUploader.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = GCDWebUploader.bundle; sourceTree = "<group>"; };
 		73C342C521001E910005BE62 /* GCDWebUploader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GCDWebUploader.h; sourceTree = "<group>"; };
 		73C342C621001E910005BE62 /* GCDWebUploader.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GCDWebUploader.m; sourceTree = "<group>"; };
@@ -87,6 +87,8 @@
 		73C342E821001E910005BE62 /* GCDWebServerFileRequest.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GCDWebServerFileRequest.m; sourceTree = "<group>"; };
 		73C342E921001E910005BE62 /* GCDWebServerURLEncodedFormRequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GCDWebServerURLEncodedFormRequest.h; sourceTree = "<group>"; };
 		73C342FB210021560005BE62 /* libxml2.2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxml2.2.tbd; path = usr/lib/libxml2.2.tbd; sourceTree = SDKROOT; };
+		73C342FD21007B240005BE62 /* NaluHelper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NaluHelper.h; sourceTree = "<group>"; };
+		73C342FE21007B240005BE62 /* NaluHelper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NaluHelper.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,7 +126,6 @@
 				73C342C721001E910005BE62 /* GCDWebDAVServer */,
 				73C342CA21001E910005BE62 /* GCDWebServer */,
 				73C342C321001E910005BE62 /* GCDWebUploader */,
-				73B55D7420FECAB7008C3DE6 /* NaluConfig.h */,
 				73B55D6A20FECA89008C3DE6 /* H264lib */,
 				73B55D5420FEC8F4008C3DE6 /* AppDelegate.h */,
 				73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */,
@@ -142,6 +143,8 @@
 		73B55D6A20FECA89008C3DE6 /* H264lib */ = {
 			isa = PBXGroup;
 			children = (
+				73C342FD21007B240005BE62 /* NaluHelper.h */,
+				73C342FE21007B240005BE62 /* NaluHelper.m */,
 				73B55D6B20FECA89008C3DE6 /* H264HwEncoder.h */,
 				73B55D6E20FECA89008C3DE6 /* H264HwEncoder.m */,
 				73B55D6C20FECA89008C3DE6 /* H264HwDecoder.h */,
@@ -328,6 +331,7 @@
 				73C342F021001E910005BE62 /* GCDWebServer.m in Sources */,
 				73C342F921001E910005BE62 /* GCDWebServerFileRequest.m in Sources */,
 				73C342EB21001E910005BE62 /* GCDWebUploader.m in Sources */,
+				73C342FF21007B240005BE62 /* NaluHelper.m in Sources */,
 				73B55D7120FECA89008C3DE6 /* AAPLEAGLLayer.m in Sources */,
 				73B55D5620FEC8F4008C3DE6 /* AppDelegate.m in Sources */,
 			);

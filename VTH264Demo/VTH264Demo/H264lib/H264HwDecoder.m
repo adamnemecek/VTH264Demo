@@ -7,7 +7,7 @@
 //
 
 #import "H264HwDecoder.h"
-#import "NaluConfig.h"
+#import "NaluHelper.h"
 
 @interface H264HwDecoder ()
 {
@@ -111,6 +111,7 @@
     return outputPixelBuffer;
 }
 
+//此处解码的帧需要包含 00000001 start code
 - (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize
 {
     int nalu_type = (frame[4] & 0x1F);

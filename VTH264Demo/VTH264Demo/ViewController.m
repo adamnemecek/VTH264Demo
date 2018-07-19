@@ -8,7 +8,7 @@
 
 #import "ViewController.h"
 #import "AAPLEAGLLayer.h"
-#import "NaluConfig.h"
+#import "NaluHelper.h"
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
 #import "H264HwEncoder.h"
@@ -37,6 +37,11 @@
 @property (nonatomic, assign) CGSize fileSize;
 @property (nonatomic, strong) NSFileHandle *fileHandle;
 @property (nonatomic, strong) GCDWebUploader *webServer;
+@property (nonatomic, strong) UIButton *startBtn;
+@property (nonatomic, strong) UIButton *switchBtn;
+@property (nonatomic, strong) UIButton *showFileBtn;
+@property (nonatomic, strong) UIButton *displayBtn;
+@property (nonatomic, strong) UIButton *fileDisplayBtn;
 
 @end
 
@@ -76,65 +81,87 @@
     self.h264Decoder.dataCallbackQueue = self.dataProcesQueue;
     
     CGFloat btnTop = 50;
-    CGFloat btnWidth = 60;
+    CGFloat btnWidth = 100;
     CGFloat btnHeight = 40;
     CGSize size = [UIScreen mainScreen].bounds.size;
     CGFloat btnX = (size.width - btnWidth * 4) / 5;
     
     UIButton *startBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop, btnWidth, btnHeight)];
-    [startBtn setTitle:@"打开" forState:UIControlStateNormal];
+    [startBtn setTitle:@"打开摄像头" forState:UIControlStateNormal];
     [startBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [startBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
     [startBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [startBtn addTarget:self action:@selector(startBtnClick:) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:startBtn];
     startBtn.selected = NO;
+    self.startBtn = startBtn;
     
     UIButton *switchBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 2 + btnWidth, btnTop, btnWidth, btnHeight)];
-    [switchBtn setTitle:@"切换" forState:UIControlStateNormal];
+    [switchBtn setTitle:@"切换摄像头" forState:UIControlStateNormal];
     [switchBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [switchBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
     [switchBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [switchBtn addTarget:self action:@selector(switchBtnClick:) forControlEvents:UIControlEventTouchUpInside];
     switchBtn.selected = NO;
     [self.view addSubview:switchBtn];
+    self.switchBtn = switchBtn;
     
     UIButton *showFileBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 3 + btnWidth * 2, btnTop, btnWidth, btnHeight)];
-    [showFileBtn setTitle:@"文件" forState:UIControlStateNormal];
+    [showFileBtn setTitle:@"文件服务器" forState:UIControlStateNormal];
     [showFileBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [showFileBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
     [showFileBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [showFileBtn addTarget:self action:@selector(showFileBtnClick:) forControlEvents:UIControlEventTouchUpInside];
     showFileBtn.selected = NO;
     [self.view addSubview:showFileBtn];
+    self.showFileBtn = showFileBtn;
     
-    UIButton *displayBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 4 + btnWidth * 3, btnTop, btnWidth, btnHeight)];
-    [displayBtn setTitle:@"预览" forState:UIControlStateNormal];
+    UIButton *displayBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 2 + btnHeight, btnWidth, btnHeight)];
+    [displayBtn setTitle:@"OpenGL预览" forState:UIControlStateNormal];
     [displayBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [displayBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
     [displayBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
     [displayBtn addTarget:self action:@selector(displayBtnClick:) forControlEvents:UIControlEventTouchUpInside];
     displayBtn.selected = NO;
     [self.view addSubview:displayBtn];
+    self.displayBtn = displayBtn;
     
+    UIButton *fileDisplayBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 2 + btnWidth, btnTop * 2 + btnHeight, btnWidth, btnHeight)];
+    [fileDisplayBtn setTitle:@"从文件解码" forState:UIControlStateNormal];
+    [fileDisplayBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [fileDisplayBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [fileDisplayBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [fileDisplayBtn addTarget:self action:@selector(fileDisplayBtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    fileDisplayBtn.selected = NO;
+    [self.view addSubview:fileDisplayBtn];
+    self.fileDisplayBtn = fileDisplayBtn;
+    
+    //显示拍摄原有内容
     self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
     [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
-    self.recordLayer.frame = CGRectMake(0, btnTop + btnHeight + 10, size.width, (size.height - (btnTop + btnHeight + 10)) / 2);
+    self.recordLayer.frame = CGRectMake(0, btnHeight * 2 + btnTop * 3, size.width, (size.height - (btnHeight * 2 + btnTop * 3)) / 2);
     
     self.useOpenGLPlayLayer = YES;
     
-    //OpenGL代码来渲染
+    //OpenGL代码来渲染H264解码帧
     self.openGLPlayLayer = [[AAPLEAGLLayer alloc] initWithFrame:CGRectMake(0, self.recordLayer.frame.origin.y + self.recordLayer.frame.size.height, self.recordLayer.frame.size.width, self.recordLayer.frame.size.height)];
     self.openGLPlayLayer.backgroundColor = [UIColor blackColor].CGColor;
     
-    //用系统自带控件渲染
+    //用系统自带控件渲染H264解码帧
     self.sampleBufferDisplayLayer = [[AVSampleBufferDisplayLayer alloc] init];
     self.sampleBufferDisplayLayer.frame = CGRectMake(0, self.recordLayer.frame.origin.y + self.recordLayer.frame.size.height, self.recordLayer.frame.size.width, self.recordLayer.frame.size.height);
     self.sampleBufferDisplayLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
     self.sampleBufferDisplayLayer.opaque = YES;
 }
 
+#pragma - mark - UI
+
 - (void)startBtnClick:(UIButton *)btn
 {
     btn.selected = !btn.selected;
     if (btn.selected == YES)
     {
+        [self.startBtn setTitle:@"关闭摄像头" forState:UIControlStateNormal];
         [self.fileHandle closeFile];
         self.fileHandle = nil;
         [[NSFileManager defaultManager] removeItemAtPath:self.h264File error:nil];
@@ -147,6 +174,7 @@
     }
     else
     {
+        [self.startBtn setTitle:@"打开摄像头" forState:UIControlStateNormal];
         [self stopCamera];
     }
     
@@ -210,12 +238,57 @@
     self.useOpenGLPlayLayer = !self.useOpenGLPlayLayer;
     if (self.useOpenGLPlayLayer)
     {
+        [self.displayBtn setTitle:@"系统预览" forState:UIControlStateNormal];
+        [self.view.layer addSublayer:self.openGLPlayLayer];
+    }
+    else
+    {
+        [self.displayBtn setTitle:@"OpenGL预览" forState:UIControlStateNormal];
+        [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
+    }
+}
+
+- (void)fileDisplayBtnClick:(id)sender
+{
+    NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.h264File];
+    NSData *allData = [fileHandle readDataToEndOfFile];
+    if (allData.length == 0)
+    {
+        return;
+    }
+
+    [self.openGLPlayLayer removeFromSuperlayer];
+    [self.sampleBufferDisplayLayer removeFromSuperlayer];
+    if (self.useOpenGLPlayLayer)
+    {
         [self.view.layer addSublayer:self.openGLPlayLayer];
     }
     else
     {
         [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
     }
+    
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        
+        NaluUnit naluUnit;
+        NSUInteger curPos = 0;
+        NSUInteger decodeFrameCount = 0;
+        
+        while ([NaluHelper readOneNaluFromAnnexBFormatH264:&naluUnit data:allData curPos:&curPos])
+        {
+            decodeFrameCount++;
+            NSLog(@"naluUnit.type :%d, frameIndex:%d", naluUnit.type, decodeFrameCount);
+            
+            const char bytes[] = "\x00\x00\x00\x01";
+            size_t length = (sizeof bytes) - 1;
+            NSData *ByteHeader = [NSData dataWithBytes:bytes length:length];
+            NSMutableData *h264Data = [[NSMutableData alloc] init];
+            [h264Data appendData:ByteHeader];
+            [h264Data appendData:[NSData dataWithBytes:naluUnit.data length:naluUnit.size]];
+
+            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+        }
+    });
 }
 
 #pragma - mark - Camera
@@ -405,18 +478,18 @@
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:sps];
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
     [self.fileHandle writeData:ByteHeader];
     [self.fileHandle writeData:sps];
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
     
     //发pps
     [h264Data resetBytesInRange:NSMakeRange(0, [h264Data length])];
     [h264Data setLength:0];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:pps];
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
     [self.fileHandle writeData:ByteHeader];
     [self.fileHandle writeData:pps];
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
 - (void)getEncodedData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame
@@ -431,9 +504,9 @@
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:data];
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
     [self.fileHandle writeData:ByteHeader];
     [self.fileHandle writeData:data];
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
     
 #pragma - mark - H264HwDecoderDelegate
