@@ -20,6 +20,7 @@
 
 #define H264_FILE_NAME      @"test.h264"
 #define MP4_FILE_NAME       @"test.mp4"
+#define AAC_FILE_NAME       @"test.aac"
 
 @interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
@@ -42,6 +43,7 @@
 @property (nonatomic, strong) H264HwDecoder *h264Decoder;
 @property (nonatomic, assign) BOOL useasynDecode;
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
+@property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureVideoFrameCount;
@@ -49,9 +51,10 @@
 @property (nonatomic, strong) NSString *h264File;
 @property (nonatomic, strong) NSString *mp4File;
 @property (nonatomic, assign) CGSize fileSize;
-@property (nonatomic, strong) NSFileHandle *fileHandle;
+@property (nonatomic, strong) NSFileHandle *videoFileHandle;
+@property (nonatomic, strong) NSString *aacFile;
+@property (nonatomic, strong) NSFileHandle *audioFileHandle;
 @property (nonatomic, strong) GCDWebUploader *webServer;
-@property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) UIButton *startBtn;
 @property (nonatomic, strong) UIButton *switchBtn;
 @property (nonatomic, strong) UIButton *showFileBtn;
@@ -82,10 +85,16 @@
     self.h264File = [documentsDirectory stringByAppendingPathComponent:H264_FILE_NAME];
     [fileManager removeItemAtPath:self.h264File error:nil];
     [fileManager createFileAtPath:self.h264File contents:nil attributes:nil];
-    NSLog( @"h264File at %@", self.h264File);
-    self.fileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
+    NSLog(@"h264File at %@", self.h264File);
+    self.videoFileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
     
     self.mp4File = [documentsDirectory stringByAppendingPathComponent:MP4_FILE_NAME];
+    
+    self.aacFile = [documentsDirectory stringByAppendingPathComponent:AAC_FILE_NAME];
+    [fileManager removeItemAtPath:self.aacFile error:nil];
+    [fileManager createFileAtPath:self.aacFile contents:nil attributes:nil];
+    NSLog(@"aacFile at %@", self.aacFile);
+    self.audioFileHandle = [NSFileHandle fileHandleForWritingAtPath:self.aacFile];
     
     self.cameraDeviceIsFront = NO;
     [self initCamera:self.cameraDeviceIsFront];
@@ -219,12 +228,18 @@
     if (btn.selected == YES)
     {
         [self.startBtn setTitle:@"关闭摄像头" forState:UIControlStateNormal];
-        [self.fileHandle closeFile];
-        self.fileHandle = nil;
-        [[NSFileManager defaultManager] removeItemAtPath:self.h264File error:nil];
         
+        [self.videoFileHandle closeFile];
+        self.videoFileHandle = nil;
+        [[NSFileManager defaultManager] removeItemAtPath:self.h264File error:nil];
         [[NSFileManager defaultManager] createFileAtPath:self.h264File contents:nil attributes:nil];
-        self.fileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
+        self.videoFileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
+        
+        [self.audioFileHandle closeFile];
+        self.audioFileHandle = nil;
+        [[NSFileManager defaultManager] removeItemAtPath:self.aacFile error:nil];
+        [[NSFileManager defaultManager] createFileAtPath:self.aacFile contents:nil attributes:nil];
+        self.audioFileHandle = [NSFileHandle fileHandleForWritingAtPath:self.aacFile];
         
         [self stopCamera];
         [self startCamera];
@@ -733,8 +748,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:sps];
-    [self.fileHandle writeData:ByteHeader];
-    [self.fileHandle writeData:sps];
+    [self.videoFileHandle writeData:ByteHeader];
+    [self.videoFileHandle writeData:sps];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
     
     //发pps
@@ -742,8 +757,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [h264Data setLength:0];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:pps];
-    [self.fileHandle writeData:ByteHeader];
-    [self.fileHandle writeData:pps];
+    [self.videoFileHandle writeData:ByteHeader];
+    [self.videoFileHandle writeData:pps];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
@@ -759,8 +774,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:data];
-    [self.fileHandle writeData:ByteHeader];
-    [self.fileHandle writeData:data];
+    [self.videoFileHandle writeData:ByteHeader];
+    [self.videoFileHandle writeData:data];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
     
@@ -787,17 +802,32 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 {
     self.encodeAudioFrameCount++;
     NSLog(@"getEncodedData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
+
+    NSInteger rawDataLength = data.length;
+    NSInteger channel = 2;
+    int adtsLength = 7;
+    char *packet = malloc(sizeof(char) * adtsLength);
+    // Variables Recycled by addADTStoPacket
+    int profile = 2;  //AAC LC
+    //39=MediaCodecInfo.CodecProfileLevel.AACObjectELD;
+    NSInteger freqIdx = 4;  //44.1KHz
     
-//    const char bytes[] = "\x00\x00\x00\x01";
-//    size_t length = (sizeof bytes) - 1;
-//    NSData *ByteHeader = [NSData dataWithBytes:bytes length:length];
-//
-//    NSMutableData *h264Data = [[NSMutableData alloc] init];
-//    [h264Data appendData:ByteHeader];
-//    [h264Data appendData:data];
-//    [self.fileHandle writeData:ByteHeader];
-//    [self.fileHandle writeData:data];
-//    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+    //MPEG-4 Audio Channel Configuration. 1 Channel front-center
+    int chanCfg = (int)channel;
+    NSUInteger fullLength = adtsLength + rawDataLength;
+    
+    // fill in ADTS data
+    packet[0] = (char)0xFF;     // 11111111     = syncword
+    packet[1] = (char)0xF9;     // 1111 1 00 1  = syncword MPEG-2 Layer CRC
+    packet[2] = (char)(((profile - 1) << 6) + (freqIdx << 2) + (chanCfg >> 2));
+    packet[3] = (char)(((chanCfg & 3) << 6) + (fullLength >> 11));
+    packet[4] = (char)((fullLength & 0x7FF) >> 3);
+    packet[5] = (char)(((fullLength & 7) << 5) + 0x1F);
+    packet[6] = (char)0xFC;
+    NSData *dataAdts = [NSData dataWithBytesNoCopy:packet length:adtsLength freeWhenDone:YES];
+    
+    [self.audioFileHandle writeData:dataAdts];
+    [self.audioFileHandle writeData:data];
 }
 
 #pragma - mark - GCDWebUploaderDelegate

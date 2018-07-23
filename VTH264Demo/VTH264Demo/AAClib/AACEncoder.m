@@ -18,12 +18,12 @@
 
 - (void)startEncode:(CMSampleBufferRef)sampleBuffer
 {
-    char szBuf[4096] = {0};
-    int nSize = sizeof(szBuf);
+    char aacData[4096] = {0};
+    int aacLen = sizeof(aacData);
     
-    if ([self encoderAAC:sampleBuffer aacData:szBuf aacLen:&nSize] == YES)
+    if ([self encoderAAC:sampleBuffer aacData:aacData aacLen:&aacLen] == YES)
     {
-        NSData *data = [NSData dataWithBytes:szBuf length:nSize];
+        NSData *data = [NSData dataWithBytes:aacData length:aacLen];
         if (self.delegate && [self.delegate respondsToSelector:@selector(getEncodedAudioData:)])
         {
             dispatch_async(self.dataCallbackQueue, ^{
@@ -135,10 +135,10 @@
 OSStatus inputDataProc(AudioConverterRef inConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData)
 {
     //AudioConverterFillComplexBuffer 编码过程中，会要求这个函数来填充输入数据，也就是原始PCM数据
-    AudioBufferList bufferList = *(AudioBufferList *)inUserData;
+    AudioBufferList inBufferList = *(AudioBufferList *)inUserData;
     ioData->mBuffers[0].mNumberChannels = 1;
-    ioData->mBuffers[0].mData = bufferList.mBuffers[0].mData;
-    ioData->mBuffers[0].mDataByteSize = bufferList.mBuffers[0].mDataByteSize;
+    ioData->mBuffers[0].mData = inBufferList.mBuffers[0].mData;
+    ioData->mBuffers[0].mDataByteSize = inBufferList.mBuffers[0].mDataByteSize;
 
     return noErr;
 }
