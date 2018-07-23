@@ -21,14 +21,6 @@
 
 @implementation H264HwEncoder
 
-- (void)initWithConfiguration
-{    
-    encodingSession = nil;
-    self.frameCount = 0;
-    self.sps = nil;
-    self.pps = nil;
-}
-
 - (void)initEncode:(int)width height:(int)height
 {
     OSStatus status = VTCompressionSessionCreate(NULL, width, height, kCMVideoCodecType_H264, NULL, NULL, NULL, didCompressH264, (__bridge void *)(self), &encodingSession);
@@ -48,7 +40,7 @@
     CFRelease(ref);
 
     //关键帧间隔, 越低效果越好, 帧数据越大
-    int frameInterval = 10;
+    int frameInterval = 48;
     CFNumberRef  frameIntervalRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &frameInterval);
     VTSessionSetProperty(encodingSession, kVTCompressionPropertyKey_MaxKeyFrameInterval, frameIntervalRef);
     CFRelease(frameIntervalRef);
@@ -65,7 +57,7 @@
 
     self.frameCount++;
     CVImageBufferRef imageBuffer = (CVImageBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
-    CMTime presentationTimeStamp = CMTimeMake(self.frameCount, 1000);
+    CMTime presentationTimeStamp = CMTimeMake(self.frameCount, 24);
     
     //硬编码系统缺省都是异步执行
     VTEncodeInfoFlags flags;
@@ -160,11 +152,11 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
             memcpy(&NALUnitLength, dataPointer + bufferOffset, AVCCHeaderLength);
             NALUnitLength = CFSwapInt32BigToHost(NALUnitLength);
             NSData *data = [[NSData alloc] initWithBytes:(dataPointer + bufferOffset + AVCCHeaderLength) length:NALUnitLength];
-            if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedData:isKeyFrame:)])
+            if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedVideoData:isKeyFrame:)])
             {
                 dispatch_async(encoder.dataCallbackQueue, ^{
                     
-                    [encoder.delegate getEncodedData:data isKeyFrame:keyframe];
+                    [encoder.delegate getEncodedVideoData:data isKeyFrame:keyframe];
                 });
             }
             bufferOffset += AVCCHeaderLength + NALUnitLength;

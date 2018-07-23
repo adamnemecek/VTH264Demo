@@ -35,6 +35,7 @@
 		73C342FC210021560005BE62 /* libxml2.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 73C342FB210021560005BE62 /* libxml2.2.tbd */; };
 		73C342FF21007B240005BE62 /* NaluHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C342FE21007B240005BE62 /* NaluHelper.m */; };
 		73C34302210088E20005BE62 /* H264ToMp4.m in Sources */ = {isa = PBXBuildFile; fileRef = 73C34301210088E20005BE62 /* H264ToMp4.m */; };
+		73D60B982105A6B400A2B2B2 /* AACEncoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 73D60B972105A6B400A2B2B2 /* AACEncoder.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -92,6 +93,8 @@
 		73C342FE21007B240005BE62 /* NaluHelper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NaluHelper.m; sourceTree = "<group>"; };
 		73C34300210088E20005BE62 /* H264ToMp4.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = H264ToMp4.h; sourceTree = "<group>"; };
 		73C34301210088E20005BE62 /* H264ToMp4.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = H264ToMp4.m; sourceTree = "<group>"; };
+		73D60B962105A6B400A2B2B2 /* AACEncoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AACEncoder.h; sourceTree = "<group>"; };
+		73D60B972105A6B400A2B2B2 /* AACEncoder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AACEncoder.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +133,7 @@
 				73C342CA21001E910005BE62 /* GCDWebServer */,
 				73C342C321001E910005BE62 /* GCDWebUploader */,
 				73B55D6A20FECA89008C3DE6 /* H264lib */,
+				73D60B952105A68300A2B2B2 /* AAClib */,
 				73B55D5420FEC8F4008C3DE6 /* AppDelegate.h */,
 				73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */,
 				73B55D5720FEC8F4008C3DE6 /* ViewController.h */,
@@ -246,6 +250,15 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		73D60B952105A68300A2B2B2 /* AAClib */ = {
+			isa = PBXGroup;
+			children = (
+				73D60B962105A6B400A2B2B2 /* AACEncoder.h */,
+				73D60B972105A6B400A2B2B2 /* AACEncoder.m */,
+			);
+			path = AAClib;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -321,6 +334,7 @@
 				73C342F621001E910005BE62 /* GCDWebServerURLEncodedFormRequest.m in Sources */,
 				73C342F821001E910005BE62 /* GCDWebServerDataRequest.m in Sources */,
 				73C342F421001E910005BE62 /* GCDWebServerDataResponse.m in Sources */,
+				73D60B982105A6B400A2B2B2 /* AACEncoder.m in Sources */,
 				73C342F521001E910005BE62 /* GCDWebServerStreamedResponse.m in Sources */,
 				73C342EF21001E910005BE62 /* GCDWebServerFunctions.m in Sources */,
 				73C342F221001E910005BE62 /* GCDWebServerErrorResponse.m in Sources */,

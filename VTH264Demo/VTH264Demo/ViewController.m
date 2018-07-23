@@ -16,14 +16,21 @@
 #import "H264HwDecoder.h"
 #import "H264ToMp4.h"
 #import "GCDWebUploader.h"
+#import "AACEncoder.h"
 
 #define H264_FILE_NAME      @"test.h264"
 #define MP4_FILE_NAME       @"test.mp4"
 
-@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
+@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
+@property (nonatomic, assign) AudioComponentInstance componetInstance;
+@property (nonatomic, assign) AudioComponent component;
+@property (nonatomic, strong) dispatch_queue_t taskQueue;
+@property (nonatomic, assign) NSUInteger captureAudioFrameCount;
+@property (nonatomic, assign) NSUInteger encodeAudioFrameCount;
 @property (nonatomic, strong) AVCaptureSession *captureSession;
 @property (nonatomic, strong) AVCaptureConnection *connectionVideo;
+@property (nonatomic, strong) AVCaptureConnection *connectionAudio;
 @property (nonatomic, strong) AVCaptureDevice *cameraDeviceBack;
 @property (nonatomic, strong) AVCaptureDevice *cameraDeviceFront;
 @property (nonatomic, assign) BOOL cameraDeviceIsFront;
@@ -37,13 +44,14 @@
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
-@property (nonatomic, assign) NSUInteger captureFrameCount;
-@property (nonatomic, assign) NSUInteger encodeFrameCount;
+@property (nonatomic, assign) NSUInteger captureVideoFrameCount;
+@property (nonatomic, assign) NSUInteger encodeVideoFrameCount;
 @property (nonatomic, strong) NSString *h264File;
 @property (nonatomic, strong) NSString *mp4File;
 @property (nonatomic, assign) CGSize fileSize;
 @property (nonatomic, strong) NSFileHandle *fileHandle;
 @property (nonatomic, strong) GCDWebUploader *webServer;
+@property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) UIButton *startBtn;
 @property (nonatomic, strong) UIButton *switchBtn;
 @property (nonatomic, strong) UIButton *showFileBtn;
@@ -82,8 +90,9 @@
     self.cameraDeviceIsFront = NO;
     [self initCamera:self.cameraDeviceIsFront];
     
+    [self initAudio];
+    
     self.h264Encoder = [H264HwEncoder alloc];
-    [self.h264Encoder initWithConfiguration];
     [self.h264Encoder initEncode:h264outputWidth height:h264outputHeight];
     self.h264Encoder.delegate = self;
     self.h264Encoder.dataCallbackQueue = self.dataProcesQueue;
@@ -93,6 +102,10 @@
     self.h264Decoder.delegate = self;
     self.h264Decoder.dataCallbackQueue = self.dataProcesQueue;
     self.h264Decoder.enableAsynDecompression = self.useasynDecode;
+    
+    self.aacEncoder = [[AACEncoder alloc] init];
+    self.aacEncoder.delegate = self;
+    self.aacEncoder.dataCallbackQueue = self.dataProcesQueue;
     
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
@@ -215,14 +228,17 @@
         
         [self stopCamera];
         [self startCamera];
+        [self stopAudio];
+        [self startAudio];
     }
     else
     {
         [self.startBtn setTitle:@"打开摄像头" forState:UIControlStateNormal];
         [self stopCamera];
+        [self stopAudio];
     }
     
-    self.captureFrameCount = 0;
+    self.captureVideoFrameCount = 0;
 }
 
 - (void)switchBtnClick:(UIButton *)btn
@@ -241,7 +257,7 @@
         self.recordLayer.frame = frame;
 
         [self startCamera];
-        self.captureFrameCount = 0;
+        self.captureVideoFrameCount = 0;
     }
 }
 
@@ -378,6 +394,147 @@
         
         [self.avPlayerVC.player play];
     }];
+}
+
+#pragma - mark - Audio
+
+- (void)initAudio
+{
+    NSError *error;
+    AVCaptureDevice *audioDev = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
+    if (audioDev == nil)
+    {
+        NSLog(@"Couldn't create audio capture device");
+        return;
+    }
+
+    AVCaptureDeviceInput *audioIn = [AVCaptureDeviceInput deviceInputWithDevice:audioDev error:&error];
+    if (error != nil)
+    {
+        NSLog(@"Couldn't create audio input");
+        return;
+    }
+
+    if ([self.captureSession canAddInput:audioIn] == NO)
+    {
+        NSLog(@"Couldn't add audio input");
+        return;
+    }
+
+    [self.captureSession addInput:audioIn];
+    
+    // export audio data
+    AVCaptureAudioDataOutput *audioOutput = [[AVCaptureAudioDataOutput alloc] init];
+    [audioOutput setSampleBufferDelegate:self queue:self.dataProcesQueue];
+    if ([self.captureSession canAddOutput:audioOutput] == NO)
+    {
+        NSLog(@"Couldn't add audio output");
+        return ;
+    }
+    
+    [self.captureSession addOutput:audioOutput];
+    self.connectionAudio = [audioOutput connectionWithMediaType:AVMediaTypeAudio];
+
+    return;
+
+//    self.taskQueue = dispatch_queue_create("com.youku.Laifeng.audioCapture.Queue", NULL);
+//
+//    AVAudioSession *session = [AVAudioSession sharedInstance];
+//
+//    AudioComponentDescription acd;
+//    acd.componentType = kAudioUnitType_Output;
+//    //acd.componentSubType = kAudioUnitSubType_VoiceProcessingIO;
+//    acd.componentSubType = kAudioUnitSubType_RemoteIO;
+//    acd.componentManufacturer = kAudioUnitManufacturer_Apple;
+//    acd.componentFlags = 0;
+//    acd.componentFlagsMask = 0;
+//
+//    self.component = AudioComponentFindNext(NULL, &acd);
+//
+//    OSStatus status = noErr;
+//    status = AudioComponentInstanceNew(self.component, &_componetInstance);
+//    if (noErr != status)
+//    {
+//        [self handleAudioComponentCreationFailure];
+//    }
+//
+//    UInt32 flagOne = 1;
+//
+//    AudioUnitSetProperty(self.componetInstance, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &flagOne, sizeof(flagOne));
+//
+//    AudioStreamBasicDescription desc = {0};
+//    desc.mSampleRate = 44100;
+//    desc.mFormatID = kAudioFormatLinearPCM;
+//    desc.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsPacked;
+//    desc.mChannelsPerFrame = 2;
+//    desc.mFramesPerPacket = 1;
+//    desc.mBitsPerChannel = 16;
+//    desc.mBytesPerFrame = desc.mBitsPerChannel / 8 * desc.mChannelsPerFrame;
+//    desc.mBytesPerPacket = desc.mBytesPerFrame * desc.mFramesPerPacket;
+//
+//    AURenderCallbackStruct cb;
+//    cb.inputProcRefCon = (__bridge void *)(self);
+//    cb.inputProc = handleInputBuffer;
+//    AudioUnitSetProperty(self.componetInstance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &desc, sizeof(desc));
+//    AudioUnitSetProperty(self.componetInstance, kAudioOutputUnitProperty_SetInputCallback, kAudioUnitScope_Global, 1, &cb, sizeof(cb));
+//
+//    status = AudioUnitInitialize(self.componetInstance);
+//    if (noErr != status)
+//    {
+//        [self handleAudioComponentCreationFailure];
+//    }
+//
+//    [session setPreferredSampleRate:44100 error:nil];
+//    [session setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers error:nil];
+//    [session setActive:YES withOptions:kAudioSessionSetActiveFlag_NotifyOthersOnDeactivation error:nil];
+//
+//    [session setActive:YES error:nil];
+}
+
+- (void)startAudio
+{
+//    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers error:nil];
+//    OSStatus status = AudioOutputUnitStart(self.componetInstance);
+//    NSLog(@"startAudio status %@", @(status));
+}
+
+- (void)stopAudio
+{
+//    OSStatus status = AudioOutputUnitStop(self.componetInstance);
+//    NSLog(@"stopAudio status %@", @(status));
+}
+
+#pragma - mark - AURenderCallback
+
+OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
+{
+    ViewController *source = (__bridge ViewController *)inRefCon;
+    if (!source)
+    {
+        return -1;
+    }
+    
+    source.captureAudioFrameCount++;
+    NSLog(@"handleInputBuffer captureAudioFrameCount %@, mSampleTime %@, mHostTime %@, inBusNumber %@, inNumberFrames %@", @(source.captureAudioFrameCount), @(inTimeStamp->mSampleTime), @(inTimeStamp->mHostTime), @(inBusNumber), @(inNumberFrames));
+    
+    AudioBuffer buffer;
+    buffer.mData = NULL;
+    buffer.mDataByteSize = 0;
+    buffer.mNumberChannels = 1;
+    
+    AudioBufferList buffers;
+    buffers.mNumberBuffers = 1;
+    buffers.mBuffers[0] = buffer;
+    
+    OSStatus status = AudioUnitRender(source.componetInstance, ioActionFlags, inTimeStamp, inBusNumber, inNumberFrames, &buffers);
+    if (!status)
+    {
+        NSData *audioData = [NSData dataWithBytes:buffers.mBuffers[0].mData length:buffers.mBuffers[0].mDataByteSize];
+//        [source captureOutput:audioData];
+        NSLog(@"handleInputBuffer audioData length %@", @(audioData.length));
+    }
+    
+    return status;
 }
 
 #pragma - mark - Camera
@@ -535,17 +692,26 @@
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
 {
-    CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
-    CVImageBufferRef cameraFrame = CMSampleBufferGetImageBuffer(sampleBuffer);
-    int bufferWidth = (int)CVPixelBufferGetWidth(cameraFrame);
-    int bufferHeight = (int)CVPixelBufferGetHeight(cameraFrame);
-    
-    self.captureFrameCount++;
-    NSLog(@"captureOutput captureFrameCount %@, currentTime %@, timescale %@, bufferWidth %@, bufferHeight %@", @(self.captureFrameCount), @(currentTime.value), @(currentTime.timescale), @(bufferWidth), @(bufferHeight));
-    
     if (connection == self.connectionVideo)
     {
+        CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CVImageBufferRef cameraFrame = CMSampleBufferGetImageBuffer(sampleBuffer);
+        int bufferWidth = (int)CVPixelBufferGetWidth(cameraFrame);
+        int bufferHeight = (int)CVPixelBufferGetHeight(cameraFrame);
+        
+        self.captureVideoFrameCount++;
+        NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, bufferWidth %@, bufferHeight %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(bufferWidth), @(bufferHeight));
+    
         [self.h264Encoder startEncode:sampleBuffer];
+    }
+    else if (connection == self.connectionAudio)
+    {
+        CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+
+        self.captureAudioFrameCount++;
+        NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale));
+        
+        [self.aacEncoder startEncode:sampleBuffer];
     }
 }
 
@@ -553,11 +719,11 @@
 
 - (void)getSpsPps:(NSData *)sps pps:(NSData *)pps
 {
-    self.encodeFrameCount++;
-    NSLog(@"getSpsPps sps length %@, frameCount %@", @(sps.length), @(self.encodeFrameCount));
+    self.encodeVideoFrameCount++;
+    NSLog(@"getSpsPps sps length %@, frameCount %@", @(sps.length), @(self.encodeVideoFrameCount));
     
-    self.encodeFrameCount++;
-    NSLog(@"getSpsPps pps length %@, frameCount %@", @(pps.length), @(self.encodeFrameCount));
+    self.encodeVideoFrameCount++;
+    NSLog(@"getSpsPps pps length %@, frameCount %@", @(pps.length), @(self.encodeVideoFrameCount));
     
     const char bytes[] = "\x00\x00\x00\x01";
     size_t length = (sizeof bytes) - 1;
@@ -581,10 +747,10 @@
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
-- (void)getEncodedData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame
+- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame
 {
-    self.encodeFrameCount++;
-    NSLog(@"getEncodedData data length %@, isKeyFrame %@, frameCount %@", @(data.length), @(isKeyFrame), @(self.encodeFrameCount));
+    self.encodeVideoFrameCount++;
+    NSLog(@"getEncodedData data length %@, isKeyFrame %@, frameCount %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount));
     
     const char bytes[] = "\x00\x00\x00\x01";
     size_t length = (sizeof bytes) - 1; 
@@ -613,6 +779,25 @@
             [self dispatchPixelBuffer:imageBuffer];
         }
     }
+}
+
+#pragma - mark - AACEncoderDelegate
+
+- (void)getEncodedAudioData:(NSData *)data
+{
+    self.encodeAudioFrameCount++;
+    NSLog(@"getEncodedData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
+    
+//    const char bytes[] = "\x00\x00\x00\x01";
+//    size_t length = (sizeof bytes) - 1;
+//    NSData *ByteHeader = [NSData dataWithBytes:bytes length:length];
+//
+//    NSMutableData *h264Data = [[NSMutableData alloc] init];
+//    [h264Data appendData:ByteHeader];
+//    [h264Data appendData:data];
+//    [self.fileHandle writeData:ByteHeader];
+//    [self.fileHandle writeData:data];
+//    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
 #pragma - mark - GCDWebUploaderDelegate

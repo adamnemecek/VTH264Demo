@@ -253,7 +253,7 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
     
     CMSampleTimingInfo timeInfoArray[1] = { {
         .duration = CMTimeMake(0, 0),
-        .presentationTimeStamp = pts,
+        .presentationTimeStamp = CMTimeMake(_frameIndex, 24),
         .decodeTimeStamp = CMTimeMake(0, 0),
     } };
     
