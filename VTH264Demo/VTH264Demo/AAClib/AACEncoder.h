@@ -19,7 +19,6 @@
 @interface AACEncoder : NSObject
 
 @property (nonatomic, weak) id<AACEncoderDelegate> delegate;
-@property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
 
 - (void)startEncode:(CMSampleBufferRef)sampleBuffer;
 - (void)endEncode;

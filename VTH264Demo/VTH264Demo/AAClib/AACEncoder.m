@@ -26,10 +26,7 @@
         NSData *data = [NSData dataWithBytes:aacData length:aacLen];
         if (self.delegate && [self.delegate respondsToSelector:@selector(getEncodedAudioData:)])
         {
-            dispatch_async(self.dataCallbackQueue, ^{
-                
-                [self.delegate getEncodedAudioData:data];
-            });
+            [self.delegate getEncodedAudioData:data];
         }
     }
 }
@@ -42,22 +39,41 @@
         return TRUE;
     }
     
+    CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
     // 输入音频格式
-    AudioStreamBasicDescription inputFormat = *(CMAudioFormatDescriptionGetStreamBasicDescription(CMSampleBufferGetFormatDescription(sampleBuffer)));
+    AudioStreamBasicDescription inputFormat = *(CMAudioFormatDescriptionGetStreamBasicDescription(des));
     AudioStreamBasicDescription outputFormat; // 这里开始是输出音频格式
     memset(&outputFormat, 0, sizeof(outputFormat));
     outputFormat.mSampleRate = inputFormat.mSampleRate; // 采样率保持一致
     outputFormat.mFormatID = kAudioFormatMPEG4AAC; // AAC编码
+//    outputFormat.mFormatFlags = kMPEG4Object_AAC_LC; //用这个硬解码偶尔会失败
     outputFormat.mChannelsPerFrame = 2;
     outputFormat.mFramesPerPacket = 1024; // AAC一帧是1024个字节
-    
-    AudioClassDescription *desc = [self getAudioClassDescriptionWithType:kAudioFormatMPEG4AAC fromManufacturer:kAppleSoftwareAudioCodecManufacturer];
-    if (AudioConverterNewSpecific(&inputFormat, &outputFormat, 1, desc, &_audioConverter) != noErr)
+
+    AudioClassDescription *desc = [self getAudioClassDescriptionWithType:kAudioFormatMPEG4AAC fromManufacturer:kAppleHardwareAudioCodecManufacturer];
+    OSStatus result = AudioConverterNewSpecific(&inputFormat, &outputFormat, 1, desc, &_audioConverter);
+    if (result != noErr)
     {
-        NSLog(@"AudioConverterNewSpecific failed");
+        NSLog(@"AudioConverterNewSpecific failed %@", @(result));
         return NO;
     }
-    
+
+//    //设置编码器属性
+//    UInt32 temp = kAudioConverterQuality_Medium;
+//    OSStatus result = AudioConverterSetProperty(_audioConverter, kAudioConverterCodecQuality, sizeof(temp), &temp);
+//    if (result != noErr)
+//    {
+//        NSLog(@"设置质量失败");
+//    }
+//
+//    //设置比特率
+//    UInt32 bitRate = 32000;
+//    result = AudioConverterSetProperty(_audioConverter, kAudioConverterEncodeBitRate, sizeof(bitRate), &bitRate);
+//    if (result != noErr)
+//    {
+//        NSLog(@"设置比特率失败");
+//    }
+   
     return YES;
 }
 
@@ -84,9 +100,10 @@
     outBufferList.mBuffers[0].mDataByteSize = *aacLen; // 设置缓冲区大小
     outBufferList.mBuffers[0].mData = aacData; // 设置AAC缓冲区
     UInt32 outputDataPacketSize = 1;
-    if (AudioConverterFillComplexBuffer(self.audioConverter, inputDataProc, &inBufferList, &outputDataPacketSize, &outBufferList, NULL) != noErr)
+    OSStatus result = AudioConverterFillComplexBuffer(self.audioConverter, inputDataProc, &inBufferList, &outputDataPacketSize, &outBufferList, NULL);
+    if (result != noErr)
     {
-        NSLog(@"AudioConverterFillComplexBuffer failed");
+        NSLog(@"AudioConverterFillComplexBuffer failed %@", @(result));
         return NO;
     }
     

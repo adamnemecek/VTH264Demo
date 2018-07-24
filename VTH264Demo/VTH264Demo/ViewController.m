@@ -18,6 +18,8 @@
 #import "GCDWebUploader.h"
 #import "AACEncoder.h"
 
+#define USE_AUDIO_TOOLBOX   0
+
 #define H264_FILE_NAME      @"test.h264"
 #define MP4_FILE_NAME       @"test.mp4"
 #define AAC_FILE_NAME       @"test.aac"
@@ -45,7 +47,8 @@
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
-@property (nonatomic, strong) dispatch_queue_t dataProcesQueue;
+@property (nonatomic, strong) dispatch_queue_t videoDataProcesQueue;
+@property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureVideoFrameCount;
 @property (nonatomic, assign) NSUInteger encodeVideoFrameCount;
 @property (nonatomic, strong) NSString *h264File;
@@ -76,7 +79,9 @@
     
     [GCDWebServer setLogLevel:4];
     
-    self.dataProcesQueue = dispatch_queue_create("com.pingan.videocoder.queue", DISPATCH_QUEUE_SERIAL);
+    self.videoDataProcesQueue = dispatch_queue_create("com.pingan.video.queue", DISPATCH_QUEUE_SERIAL);
+    self.audioDataProcesQueue = dispatch_queue_create("com.pingan.audio.queue", DISPATCH_QUEUE_SERIAL);
+    
     self.fileSize = CGSizeMake(h264outputWidth, h264outputHeight);
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -104,23 +109,22 @@
     self.h264Encoder = [H264HwEncoder alloc];
     [self.h264Encoder initEncode:h264outputWidth height:h264outputHeight];
     self.h264Encoder.delegate = self;
-    self.h264Encoder.dataCallbackQueue = self.dataProcesQueue;
+    self.h264Encoder.dataCallbackQueue = self.videoDataProcesQueue;
     
     self.useasynDecode = NO;
     self.h264Decoder = [[H264HwDecoder alloc] init];
     self.h264Decoder.delegate = self;
-    self.h264Decoder.dataCallbackQueue = self.dataProcesQueue;
+    self.h264Decoder.dataCallbackQueue = self.videoDataProcesQueue;
     self.h264Decoder.enableAsynDecompression = self.useasynDecode;
     
     self.aacEncoder = [[AACEncoder alloc] init];
     self.aacEncoder.delegate = self;
-    self.aacEncoder.dataCallbackQueue = self.dataProcesQueue;
     
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
     CGFloat btnHeight = 40;
     CGSize size = [UIScreen mainScreen].bounds.size;
-    CGFloat btnX = (size.width - btnWidth * 4) / 5;
+    CGFloat btnX = (size.width - btnWidth * 3) / 4;
     
     UIButton *startBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop, btnWidth, btnHeight)];
     [startBtn setTitle:@"打开摄像头" forState:UIControlStateNormal];
@@ -415,6 +419,63 @@
 
 - (void)initAudio
 {
+#if USE_AUDIO_TOOLBOX
+    self.taskQueue = dispatch_queue_create("com.pingan.audioCapture.Queue", NULL);
+    
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    
+    AudioComponentDescription acd;
+    acd.componentType = kAudioUnitType_Output;
+    //acd.componentSubType = kAudioUnitSubType_VoiceProcessingIO;
+    acd.componentSubType = kAudioUnitSubType_RemoteIO;
+    acd.componentManufacturer = kAudioUnitManufacturer_Apple;
+    acd.componentFlags = 0;
+    acd.componentFlagsMask = 0;
+    
+    self.component = AudioComponentFindNext(NULL, &acd);
+    
+    OSStatus status = noErr;
+    status = AudioComponentInstanceNew(self.component, &_componetInstance);
+    if (noErr != status)
+    {
+        NSLog(@"status %@", @(status));
+        return;
+    }
+    
+    UInt32 flagOne = 1;
+    
+    AudioUnitSetProperty(self.componetInstance, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &flagOne, sizeof(flagOne));
+    
+    AudioStreamBasicDescription desc = {0};
+    desc.mSampleRate = 44100;
+    desc.mFormatID = kAudioFormatLinearPCM;
+    desc.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsPacked;
+    desc.mChannelsPerFrame = 2;
+    desc.mFramesPerPacket = 1;
+    desc.mBitsPerChannel = 16;
+    desc.mBytesPerFrame = desc.mBitsPerChannel / 8 * desc.mChannelsPerFrame;
+    desc.mBytesPerPacket = desc.mBytesPerFrame * desc.mFramesPerPacket;
+    
+    AURenderCallbackStruct cb;
+    cb.inputProcRefCon = (__bridge void *)(self);
+    cb.inputProc = handleInputBuffer;
+    AudioUnitSetProperty(self.componetInstance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &desc, sizeof(desc));
+    AudioUnitSetProperty(self.componetInstance, kAudioOutputUnitProperty_SetInputCallback, kAudioUnitScope_Global, 1, &cb, sizeof(cb));
+    
+    status = AudioUnitInitialize(self.componetInstance);
+    if (noErr != status)
+    {
+        NSLog(@"status %@", @(status));
+        return;
+    }
+    
+    [session setPreferredSampleRate:44100 error:nil];
+    [session setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers error:nil];
+    [session setActive:YES withOptions:kAudioSessionSetActiveFlag_NotifyOthersOnDeactivation error:nil];
+    
+    [session setActive:YES error:nil];
+    return;
+#else
     NSError *error;
     AVCaptureDevice *audioDev = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
     if (audioDev == nil)
@@ -430,6 +491,8 @@
         return;
     }
 
+    [self.captureSession beginConfiguration];
+    
     if ([self.captureSession canAddInput:audioIn] == NO)
     {
         NSLog(@"Couldn't add audio input");
@@ -440,7 +503,7 @@
     
     // export audio data
     AVCaptureAudioDataOutput *audioOutput = [[AVCaptureAudioDataOutput alloc] init];
-    [audioOutput setSampleBufferDelegate:self queue:self.dataProcesQueue];
+    [audioOutput setSampleBufferDelegate:self queue:self.audioDataProcesQueue];
     if ([self.captureSession canAddOutput:audioOutput] == NO)
     {
         NSLog(@"Couldn't add audio output");
@@ -448,75 +511,30 @@
     }
     
     [self.captureSession addOutput:audioOutput];
+    
+    [self.captureSession commitConfiguration];
+    
     self.connectionAudio = [audioOutput connectionWithMediaType:AVMediaTypeAudio];
 
     return;
-
-//    self.taskQueue = dispatch_queue_create("com.youku.Laifeng.audioCapture.Queue", NULL);
-//
-//    AVAudioSession *session = [AVAudioSession sharedInstance];
-//
-//    AudioComponentDescription acd;
-//    acd.componentType = kAudioUnitType_Output;
-//    //acd.componentSubType = kAudioUnitSubType_VoiceProcessingIO;
-//    acd.componentSubType = kAudioUnitSubType_RemoteIO;
-//    acd.componentManufacturer = kAudioUnitManufacturer_Apple;
-//    acd.componentFlags = 0;
-//    acd.componentFlagsMask = 0;
-//
-//    self.component = AudioComponentFindNext(NULL, &acd);
-//
-//    OSStatus status = noErr;
-//    status = AudioComponentInstanceNew(self.component, &_componetInstance);
-//    if (noErr != status)
-//    {
-//        [self handleAudioComponentCreationFailure];
-//    }
-//
-//    UInt32 flagOne = 1;
-//
-//    AudioUnitSetProperty(self.componetInstance, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &flagOne, sizeof(flagOne));
-//
-//    AudioStreamBasicDescription desc = {0};
-//    desc.mSampleRate = 44100;
-//    desc.mFormatID = kAudioFormatLinearPCM;
-//    desc.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsPacked;
-//    desc.mChannelsPerFrame = 2;
-//    desc.mFramesPerPacket = 1;
-//    desc.mBitsPerChannel = 16;
-//    desc.mBytesPerFrame = desc.mBitsPerChannel / 8 * desc.mChannelsPerFrame;
-//    desc.mBytesPerPacket = desc.mBytesPerFrame * desc.mFramesPerPacket;
-//
-//    AURenderCallbackStruct cb;
-//    cb.inputProcRefCon = (__bridge void *)(self);
-//    cb.inputProc = handleInputBuffer;
-//    AudioUnitSetProperty(self.componetInstance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 1, &desc, sizeof(desc));
-//    AudioUnitSetProperty(self.componetInstance, kAudioOutputUnitProperty_SetInputCallback, kAudioUnitScope_Global, 1, &cb, sizeof(cb));
-//
-//    status = AudioUnitInitialize(self.componetInstance);
-//    if (noErr != status)
-//    {
-//        [self handleAudioComponentCreationFailure];
-//    }
-//
-//    [session setPreferredSampleRate:44100 error:nil];
-//    [session setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers error:nil];
-//    [session setActive:YES withOptions:kAudioSessionSetActiveFlag_NotifyOthersOnDeactivation error:nil];
-//
-//    [session setActive:YES error:nil];
+#endif
 }
 
 - (void)startAudio
 {
-//    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers error:nil];
-//    OSStatus status = AudioOutputUnitStart(self.componetInstance);
-//    NSLog(@"startAudio status %@", @(status));
+#if USE_AUDIO_TOOLBOX
+    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayAndRecord withOptions:AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers error:nil];
+    OSStatus status = AudioOutputUnitStart(self.componetInstance);
+    NSLog(@"startAudio status %@", @(status));
+#endif
 }
 
 - (void)stopAudio
 {
-//    OSStatus status = AudioOutputUnitStop(self.componetInstance);
-//    NSLog(@"stopAudio status %@", @(status));
+#if USE_AUDIO_TOOLBOX
+    OSStatus status = AudioOutputUnitStop(self.componetInstance);
+    NSLog(@"stopAudio status %@", @(status));
+#endif
 }
 
 #pragma - mark - AURenderCallback
@@ -586,7 +604,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     NSNumber *val = [NSNumber numberWithUnsignedInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange];
     NSDictionary *videoSettings = [NSDictionary dictionaryWithObject:val forKey:key];
     outputVideoDevice.videoSettings = videoSettings;
-    [outputVideoDevice setSampleBufferDelegate:self queue:self.dataProcesQueue];
+    [outputVideoDevice setSampleBufferDelegate:self queue:self.videoDataProcesQueue];
     
     self.captureSession = [[AVCaptureSession alloc] init];
     [self.captureSession addInput:inputCameraDevice];
@@ -709,22 +727,24 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 {
     if (connection == self.connectionVideo)
     {
+        CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
         CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
         CVImageBufferRef cameraFrame = CMSampleBufferGetImageBuffer(sampleBuffer);
         int bufferWidth = (int)CVPixelBufferGetWidth(cameraFrame);
         int bufferHeight = (int)CVPixelBufferGetHeight(cameraFrame);
         
         self.captureVideoFrameCount++;
-        NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, bufferWidth %@, bufferHeight %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(bufferWidth), @(bufferHeight));
+        NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, bufferWidth %@, bufferHeight %@, des %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(bufferWidth), @(bufferHeight), des);
     
         [self.h264Encoder startEncode:sampleBuffer];
     }
     else if (connection == self.connectionAudio)
     {
+        CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
         CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
 
         self.captureAudioFrameCount++;
-        NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale));
+        NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@, des %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale), des);
         
         [self.aacEncoder startEncode:sampleBuffer];
     }
@@ -740,9 +760,9 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     self.encodeVideoFrameCount++;
     NSLog(@"getSpsPps pps length %@, frameCount %@", @(pps.length), @(self.encodeVideoFrameCount));
     
-    const char bytes[] = "\x00\x00\x00\x01";
-    size_t length = (sizeof bytes) - 1;
-    NSData *ByteHeader = [NSData dataWithBytes:bytes length:length];
+    uint8_t header[] = {0x00, 0x00, 0x00, 0x01};
+    size_t length = 4;
+    NSData *ByteHeader = [NSData dataWithBytes:header length:length];
     
     //发sps
     NSMutableData *h264Data = [[NSMutableData alloc] init];
@@ -765,12 +785,11 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 - (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame
 {
     self.encodeVideoFrameCount++;
-    NSLog(@"getEncodedData data length %@, isKeyFrame %@, frameCount %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount));
+    NSLog(@"getEncodedVideoData data length %@, isKeyFrame %@, frameCount %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount));
     
-    const char bytes[] = "\x00\x00\x00\x01";
-    size_t length = (sizeof bytes) - 1; 
-    NSData *ByteHeader = [NSData dataWithBytes:bytes length:length];
-    
+    uint8_t header[] = {0x00, 0x00, 0x00, 0x01};
+    size_t length = 4;
+    NSData *ByteHeader = [NSData dataWithBytes:header length:length];
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:data];
@@ -801,21 +820,24 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 - (void)getEncodedAudioData:(NSData *)data
 {
     self.encodeAudioFrameCount++;
-    NSLog(@"getEncodedData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
+    NSLog(@"getEncodedAudioData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
 
-    NSInteger rawDataLength = data.length;
-    NSInteger channel = 2;
+    NSData *dataAdts = [self adtsData:2 rawDataLength:data.length];
+    
+    [self.audioFileHandle writeData:dataAdts];
+    [self.audioFileHandle writeData:data];
+}
+
+- (NSData *)adtsData:(NSInteger)channel rawDataLength:(NSInteger)rawDataLength
+{
     int adtsLength = 7;
     char *packet = malloc(sizeof(char) * adtsLength);
     // Variables Recycled by addADTStoPacket
     int profile = 2;  //AAC LC
     //39=MediaCodecInfo.CodecProfileLevel.AACObjectELD;
-    NSInteger freqIdx = 4;  //44.1KHz
-    
-    //MPEG-4 Audio Channel Configuration. 1 Channel front-center
-    int chanCfg = (int)channel;
+    NSInteger freqIdx = [self sampleRateIndex:44100];  //44.1KHz
+    int chanCfg = (int)channel;  //MPEG-4 Audio Channel Configuration. 1 Channel front-center
     NSUInteger fullLength = adtsLength + rawDataLength;
-    
     // fill in ADTS data
     packet[0] = (char)0xFF;     // 11111111     = syncword
     packet[1] = (char)0xF9;     // 1111 1 00 1  = syncword MPEG-2 Layer CRC
@@ -824,10 +846,60 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     packet[4] = (char)((fullLength & 0x7FF) >> 3);
     packet[5] = (char)(((fullLength & 7) << 5) + 0x1F);
     packet[6] = (char)0xFC;
-    NSData *dataAdts = [NSData dataWithBytesNoCopy:packet length:adtsLength freeWhenDone:YES];
+    NSData *data = [NSData dataWithBytesNoCopy:packet length:adtsLength freeWhenDone:YES];
     
-    [self.audioFileHandle writeData:dataAdts];
-    [self.audioFileHandle writeData:data];
+    return data;
+}
+
+- (NSInteger)sampleRateIndex:(NSInteger)frequencyInHz
+{
+    NSInteger sampleRateIndex = 0;
+    switch (frequencyInHz)
+    {
+        case 96000:
+            sampleRateIndex = 0;
+            break;
+        case 88200:
+            sampleRateIndex = 1;
+            break;
+        case 64000:
+            sampleRateIndex = 2;
+            break;
+        case 48000:
+            sampleRateIndex = 3;
+            break;
+        case 44100:
+            sampleRateIndex = 4;
+            break;
+        case 32000:
+            sampleRateIndex = 5;
+            break;
+        case 24000:
+            sampleRateIndex = 6;
+            break;
+        case 22050:
+            sampleRateIndex = 7;
+            break;
+        case 16000:
+            sampleRateIndex = 8;
+            break;
+        case 12000:
+            sampleRateIndex = 9;
+            break;
+        case 11025:
+            sampleRateIndex = 10;
+            break;
+        case 8000:
+            sampleRateIndex = 11;
+            break;
+        case 7350:
+            sampleRateIndex = 12;
+            break;
+        default:
+            sampleRateIndex = 15;
+    }
+    
+    return sampleRateIndex;
 }
 
 #pragma - mark - GCDWebUploaderDelegate
