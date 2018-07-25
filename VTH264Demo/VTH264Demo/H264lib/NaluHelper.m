@@ -10,6 +10,15 @@
 
 @implementation NaluHelper
 
++ (NSData *)getH264Header
+{
+    uint8_t header[] = {0x00, 0x00, 0x00, 0x01};
+    size_t length = 4;
+    NSData *ByteHeader = [NSData dataWithBytes:header length:length];
+    
+    return ByteHeader;
+}
+
 + (BOOL)readOneNaluFromAnnexBFormatH264:(NaluUnit *)nalu data:(NSData *)data curPos:(NSUInteger *)curPos
 {
     NSUInteger i = *curPos;

@@ -23,7 +23,7 @@
 @property (nonatomic, assign) BOOL enableAsynDecompression;
 
 - (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize;
-- (void)EndDecoder;
+- (void)endDecoder;
 - (BOOL)resetH264Decoder;
 
 @end

@@ -174,7 +174,7 @@
     }
 }
 
-- (void)EndDecoder
+- (void)endDecoder
 {
     if (deocdingSession)
     {
@@ -187,7 +187,7 @@
 
 - (BOOL)resetH264Decoder
 {
-    [self EndDecoder];
+    [self endDecoder];
     return [self initH264Decoder];
 }
 

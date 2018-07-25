@@ -35,6 +35,7 @@ typedef struct _NaluUnit
 
 @interface NaluHelper : NSObject
 
++ (NSData *)getH264Header;
 + (BOOL)readOneNaluFromAnnexBFormatH264:(NaluUnit *)nalu data:(NSData *)data curPos:(NSUInteger *)curPos;
 
 @end

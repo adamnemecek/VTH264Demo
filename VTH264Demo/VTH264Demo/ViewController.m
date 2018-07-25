@@ -17,6 +17,8 @@
 #import "H264ToMp4.h"
 #import "GCDWebUploader.h"
 #import "AACEncoder.h"
+#import "AACDecoder.h"
+#import "AACHelper.h"
 
 //采用audiotoolbox还是采用AVCapture来采集音频
 #define USE_AUDIO_TOOLBOX   1
@@ -27,7 +29,7 @@
 #define AAC_FILE_NAME       @"test.aac"
 #define MP3_FILE_NAME       @"test.mp3"
 
-@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
+@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, AACDecoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
 @property (nonatomic, assign) AudioComponentInstance componetInstance;
 @property (nonatomic, assign) AudioComponent component;
@@ -49,6 +51,7 @@
 @property (nonatomic, assign) BOOL useasynDecode;
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AACEncoder *aacEncoder;
+@property (nonatomic, strong) AACDecoder *aacDecoder;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) dispatch_queue_t videoDataProcesQueue;
 @property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
@@ -69,6 +72,7 @@
 @property (nonatomic, strong) UIButton *fileDisplayBtn;
 @property (nonatomic, strong) UIButton *toMp4Btn;
 @property (nonatomic, strong) UIButton *playMp4Btn;
+@property (nonatomic, strong) UIButton *playH264Btn;
 @property (nonatomic, strong) UIButton *asynDecodeBtn;
 @property (nonatomic, strong) UIButton *toMp3Btn;
 @property (nonatomic, strong) UIButton *playMp3Btn;
@@ -136,6 +140,9 @@
     
     self.aacEncoder = [[AACEncoder alloc] init];
     self.aacEncoder.delegate = self;
+    
+    self.aacDecoder = [[AACDecoder alloc] init];
+    self.aacDecoder.delegate = self;
     
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
@@ -222,6 +229,16 @@
     playMp4Btn.selected = NO;
     [self.view addSubview:playMp4Btn];
     self.playMp4Btn = playMp4Btn;
+    
+    UIButton *playH264Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 3 + btnWidth * 2, btnTop * 3 + btnHeight * 2, btnWidth, btnHeight)];
+    [playH264Btn setTitle:@"播放H264" forState:UIControlStateNormal];
+    [playH264Btn setBackgroundColor:[UIColor lightGrayColor]];
+    [playH264Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [playH264Btn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [playH264Btn addTarget:self action:@selector(playH264BtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    playH264Btn.selected = NO;
+    [self.view addSubview:playH264Btn];
+    self.playH264Btn = playH264Btn;
     
     UIButton *toMp3Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 4 + btnHeight * 3, btnWidth, btnHeight)];
     [toMp3Btn setTitle:@"AAC转MP3" forState:UIControlStateNormal];
@@ -462,6 +479,21 @@
     }];
 }
 
+- (void)playH264BtnClick:(id)sender
+{
+    //AVPlayer 无法直接播放H264文件，需要解码
+    CGSize size = [UIScreen mainScreen].bounds.size;
+    self.avPlayerVC = [[AVPlayerViewController alloc] init];
+    self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.h264File]];
+    self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
+    self.avPlayerVC.showsPlaybackControls = YES;
+    
+    [self presentViewController:self.avPlayerVC animated:YES completion:^{
+        
+        [self.avPlayerVC.player play];
+    }];
+}
+
 - (void)toMp3BtnClick:(id)sender
 {
 
@@ -474,6 +506,7 @@
 
 - (void)playAACBtnClick:(id)sender
 {
+    //AVPlayer 可以直接播放AAC文件
     CGSize size = [UIScreen mainScreen].bounds.size;
     self.avPlayerVC = [[AVPlayerViewController alloc] init];
     self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.aacFile]];
@@ -876,16 +909,13 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     self.encodeVideoFrameCount++;
     NSLog(@"getSpsPps pps length %@, frameCount %@", @(pps.length), @(self.encodeVideoFrameCount));
     
-    uint8_t header[] = {0x00, 0x00, 0x00, 0x01};
-    size_t length = 4;
-    NSData *ByteHeader = [NSData dataWithBytes:header length:length];
+    NSData *ByteHeader = [NaluHelper getH264Header];
     
     //发sps
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:sps];
-    [self.videoFileHandle writeData:ByteHeader];
-    [self.videoFileHandle writeData:sps];
+    [self.videoFileHandle writeData:h264Data];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
     
     //发pps
@@ -893,8 +923,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [h264Data setLength:0];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:pps];
-    [self.videoFileHandle writeData:ByteHeader];
-    [self.videoFileHandle writeData:pps];
+    [self.videoFileHandle writeData:h264Data];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
@@ -902,15 +931,12 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 {
     self.encodeVideoFrameCount++;
     NSLog(@"getEncodedVideoData data length %@, isKeyFrame %@, frameCount %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount));
-    
-    uint8_t header[] = {0x00, 0x00, 0x00, 0x01};
-    size_t length = 4;
-    NSData *ByteHeader = [NSData dataWithBytes:header length:length];
+
+    NSData *ByteHeader = [NaluHelper getH264Header];
     NSMutableData *h264Data = [[NSMutableData alloc] init];
     [h264Data appendData:ByteHeader];
     [h264Data appendData:data];
-    [self.videoFileHandle writeData:ByteHeader];
-    [self.videoFileHandle writeData:data];
+    [self.videoFileHandle writeData:h264Data];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
     
@@ -938,84 +964,12 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     self.encodeAudioFrameCount++;
     NSLog(@"getEncodedAudioData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
 
-    NSData *dataAdts = [self adtsData:2 rawDataLength:data.length];
+    NSData *dataAdts = [AACHelper adtsData:2 dataLength:data.length];
+    NSMutableData *aacData = [[NSMutableData alloc] init];
+    [aacData appendData:dataAdts];
+    [aacData appendData:data];
     
-    [self.audioFileHandle writeData:dataAdts];
-    [self.audioFileHandle writeData:data];
-}
-
-- (NSData *)adtsData:(NSInteger)channel rawDataLength:(NSInteger)rawDataLength
-{
-    int adtsLength = 7;
-    char *packet = malloc(sizeof(char) * adtsLength);
-    // Variables Recycled by addADTStoPacket
-    int profile = 2;  //AAC LC
-    //39=MediaCodecInfo.CodecProfileLevel.AACObjectELD;
-    NSInteger freqIdx = [self sampleRateIndex:44100];  //44.1KHz
-    int chanCfg = (int)channel;  //MPEG-4 Audio Channel Configuration. 1 Channel front-center
-    NSUInteger fullLength = adtsLength + rawDataLength;
-    // fill in ADTS data
-    packet[0] = (char)0xFF;     // 11111111     = syncword
-    packet[1] = (char)0xF9;     // 1111 1 00 1  = syncword MPEG-2 Layer CRC
-    packet[2] = (char)(((profile - 1) << 6) + (freqIdx << 2) + (chanCfg >> 2));
-    packet[3] = (char)(((chanCfg & 3) << 6) + (fullLength >> 11));
-    packet[4] = (char)((fullLength & 0x7FF) >> 3);
-    packet[5] = (char)(((fullLength & 7) << 5) + 0x1F);
-    packet[6] = (char)0xFC;
-    NSData *data = [NSData dataWithBytesNoCopy:packet length:adtsLength freeWhenDone:YES];
-    
-    return data;
-}
-
-- (NSInteger)sampleRateIndex:(NSInteger)frequencyInHz
-{
-    NSInteger sampleRateIndex = 0;
-    switch (frequencyInHz)
-    {
-        case 96000:
-            sampleRateIndex = 0;
-            break;
-        case 88200:
-            sampleRateIndex = 1;
-            break;
-        case 64000:
-            sampleRateIndex = 2;
-            break;
-        case 48000:
-            sampleRateIndex = 3;
-            break;
-        case 44100:
-            sampleRateIndex = 4;
-            break;
-        case 32000:
-            sampleRateIndex = 5;
-            break;
-        case 24000:
-            sampleRateIndex = 6;
-            break;
-        case 22050:
-            sampleRateIndex = 7;
-            break;
-        case 16000:
-            sampleRateIndex = 8;
-            break;
-        case 12000:
-            sampleRateIndex = 9;
-            break;
-        case 11025:
-            sampleRateIndex = 10;
-            break;
-        case 8000:
-            sampleRateIndex = 11;
-            break;
-        case 7350:
-            sampleRateIndex = 12;
-            break;
-        default:
-            sampleRateIndex = 15;
-    }
-    
-    return sampleRateIndex;
+    [self.audioFileHandle writeData:aacData];
 }
 
 #pragma - mark - GCDWebUploaderDelegate
