@@ -18,11 +18,14 @@
 #import "GCDWebUploader.h"
 #import "AACEncoder.h"
 
+//采用audiotoolbox还是采用AVCapture来采集音频
 #define USE_AUDIO_TOOLBOX   1
 
 #define H264_FILE_NAME      @"test.h264"
 #define MP4_FILE_NAME       @"test.mp4"
+
 #define AAC_FILE_NAME       @"test.aac"
+#define MP3_FILE_NAME       @"test.mp3"
 
 @interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
@@ -56,6 +59,7 @@
 @property (nonatomic, assign) CGSize fileSize;
 @property (nonatomic, strong) NSFileHandle *videoFileHandle;
 @property (nonatomic, strong) NSString *aacFile;
+@property (nonatomic, strong) NSString *mp3File;
 @property (nonatomic, strong) NSFileHandle *audioFileHandle;
 @property (nonatomic, strong) GCDWebUploader *webServer;
 @property (nonatomic, strong) UIButton *startBtn;
@@ -66,6 +70,9 @@
 @property (nonatomic, strong) UIButton *toMp4Btn;
 @property (nonatomic, strong) UIButton *playMp4Btn;
 @property (nonatomic, strong) UIButton *asynDecodeBtn;
+@property (nonatomic, strong) UIButton *toMp3Btn;
+@property (nonatomic, strong) UIButton *playMp3Btn;
+@property (nonatomic, strong) UIButton *playAACBtn;
 
 @end
 
@@ -79,27 +86,37 @@
     
     [GCDWebServer setLogLevel:4];
     
-    self.videoDataProcesQueue = dispatch_queue_create("com.pingan.video.queue", DISPATCH_QUEUE_SERIAL);
-    self.audioDataProcesQueue = dispatch_queue_create("com.pingan.audio.queue", DISPATCH_QUEUE_SERIAL);
+    //视频编码后数据返回的队列
+    self.videoDataProcesQueue = dispatch_queue_create("com.pingan.videoProces.queue", DISPATCH_QUEUE_SERIAL);
+    //音频编码后数据返回的队列
+    self.audioDataProcesQueue = dispatch_queue_create("com.pingan.audioProces.queue", DISPATCH_QUEUE_SERIAL);
     
     self.fileSize = CGSizeMake(h264outputWidth, h264outputHeight);
+    
+    //音视频文件存储路径
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *documentsDirectory = [paths objectAtIndex:0];
     
+    //H264文件路径
     self.h264File = [documentsDirectory stringByAppendingPathComponent:H264_FILE_NAME];
     [fileManager removeItemAtPath:self.h264File error:nil];
     [fileManager createFileAtPath:self.h264File contents:nil attributes:nil];
     NSLog(@"h264File at %@", self.h264File);
     self.videoFileHandle = [NSFileHandle fileHandleForWritingAtPath:self.h264File];
     
+    //H264转换为mp4文件路径
     self.mp4File = [documentsDirectory stringByAppendingPathComponent:MP4_FILE_NAME];
     
+    //AAC文件路径
     self.aacFile = [documentsDirectory stringByAppendingPathComponent:AAC_FILE_NAME];
     [fileManager removeItemAtPath:self.aacFile error:nil];
     [fileManager createFileAtPath:self.aacFile contents:nil attributes:nil];
     NSLog(@"aacFile at %@", self.aacFile);
     self.audioFileHandle = [NSFileHandle fileHandleForWritingAtPath:self.aacFile];
+    
+    //AAC转换为mp3文件路径
+    self.mp3File = [documentsDirectory stringByAppendingPathComponent:MP3_FILE_NAME];
     
     self.cameraDeviceIsFront = NO;
     [self initCamera:self.cameraDeviceIsFront];
@@ -206,10 +223,40 @@
     [self.view addSubview:playMp4Btn];
     self.playMp4Btn = playMp4Btn;
     
+    UIButton *toMp3Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 4 + btnHeight * 3, btnWidth, btnHeight)];
+    [toMp3Btn setTitle:@"AAC转MP3" forState:UIControlStateNormal];
+    [toMp3Btn setBackgroundColor:[UIColor lightGrayColor]];
+    [toMp3Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [toMp3Btn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [toMp3Btn addTarget:self action:@selector(toMp3BtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    toMp3Btn.selected = NO;
+    [self.view addSubview:toMp3Btn];
+    self.toMp3Btn = toMp3Btn;
+    
+    UIButton *playMp3Btn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 2 + btnWidth, btnTop * 4 + btnHeight * 3, btnWidth, btnHeight)];
+    [playMp3Btn setTitle:@"播放MP3" forState:UIControlStateNormal];
+    [playMp3Btn setBackgroundColor:[UIColor lightGrayColor]];
+    [playMp3Btn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [playMp3Btn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [playMp3Btn addTarget:self action:@selector(playMp3BtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    playMp3Btn.selected = NO;
+    [self.view addSubview:playMp3Btn];
+    self.playMp4Btn = playMp3Btn;
+    
+    UIButton *playAACBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX * 3 + btnWidth * 2, btnTop * 4 + btnHeight * 3, btnWidth, btnHeight)];
+    [playAACBtn setTitle:@"播放AAC" forState:UIControlStateNormal];
+    [playAACBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [playAACBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [playAACBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [playAACBtn addTarget:self action:@selector(playAACBtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    playAACBtn.selected = NO;
+    [self.view addSubview:playAACBtn];
+    self.playAACBtn = playAACBtn;
+    
     //显示拍摄原有内容
     self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
     [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
-    self.recordLayer.frame = CGRectMake(0, btnHeight * 3 + btnTop * 4, size.width, (size.height - (btnHeight * 3 + btnTop * 4)) / 2);
+    self.recordLayer.frame = CGRectMake(0, btnHeight * 4 + btnTop * 5, size.width, (size.height - (btnHeight * 4 + btnTop * 5)) / 2);
     
     self.useOpenGLPlayLayer = YES;
     
@@ -356,7 +403,7 @@
         while ([NaluHelper readOneNaluFromAnnexBFormatH264:&naluUnit data:allData curPos:&curPos])
         {
             decodeFrameCount++;
-            NSLog(@"naluUnit.type :%d, frameIndex:%d", naluUnit.type, decodeFrameCount);
+            NSLog(@"naluUnit.type :%d, frameIndex:%@", naluUnit.type, @(decodeFrameCount));
             
             const char bytes[] = "\x00\x00\x00\x01";
             size_t length = (sizeof bytes) - 1;
@@ -406,6 +453,30 @@
     CGSize size = [UIScreen mainScreen].bounds.size;
     self.avPlayerVC = [[AVPlayerViewController alloc] init];
     self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.mp4File]];
+    self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
+    self.avPlayerVC.showsPlaybackControls = YES;
+    
+    [self presentViewController:self.avPlayerVC animated:YES completion:^{
+        
+        [self.avPlayerVC.player play];
+    }];
+}
+
+- (void)toMp3BtnClick:(id)sender
+{
+
+}
+
+- (void)playMp3BtnClick:(id)sender
+{
+
+}
+
+- (void)playAACBtnClick:(id)sender
+{
+    CGSize size = [UIScreen mainScreen].bounds.size;
+    self.avPlayerVC = [[AVPlayerViewController alloc] init];
+    self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.aacFile]];
     self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
     self.avPlayerVC.showsPlaybackControls = YES;
     
