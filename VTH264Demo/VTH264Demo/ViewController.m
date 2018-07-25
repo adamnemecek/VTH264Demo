@@ -18,7 +18,7 @@
 #import "GCDWebUploader.h"
 #import "AACEncoder.h"
 
-#define USE_AUDIO_TOOLBOX   0
+#define USE_AUDIO_TOOLBOX   1
 
 #define H264_FILE_NAME      @"test.h264"
 #define MP4_FILE_NAME       @"test.mp4"
@@ -476,6 +476,7 @@
     [session setActive:YES error:nil];
     return;
 #else
+    //用 AVCaptureDevice 无法设置音频采样率，双通道这些参数
     NSError *error;
     AVCaptureDevice *audioDev = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
     if (audioDev == nil)
@@ -484,6 +485,9 @@
         return;
     }
 
+    NSArray *array = audioDev.formats;
+    NSLog(@"audioDev formats %@", array);
+    
     AVCaptureDeviceInput *audioIn = [AVCaptureDeviceInput deviceInputWithDevice:audioDev error:&error];
     if (error != nil)
     {
@@ -541,33 +545,70 @@
 
 OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionFlags, const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber, UInt32 inNumberFrames, AudioBufferList *ioData)
 {
-    ViewController *source = (__bridge ViewController *)inRefCon;
-    if (!source)
-    {
-        return -1;
+    @autoreleasepool {
+        
+        ViewController *ref = (__bridge ViewController *)inRefCon;
+        if (!ref)
+        {
+            return -1;
+        }
+        
+        ref.captureAudioFrameCount++;
+        NSLog(@"handleInputBuffer captureAudioFrameCount %@, mSampleTime %@, mHostTime %@, inBusNumber %@, inNumberFrames %@", @(ref.captureAudioFrameCount), @(inTimeStamp->mSampleTime), @(inTimeStamp->mHostTime), @(inBusNumber), @(inNumberFrames));
+        
+        AudioStreamBasicDescription desc = {0};
+        desc.mSampleRate = 48000;
+        desc.mFormatID = kAudioFormatLinearPCM;
+        desc.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked;
+        desc.mChannelsPerFrame = 2;
+        desc.mFramesPerPacket = 1;
+        desc.mBitsPerChannel = 16;
+        desc.mBytesPerFrame = desc.mBitsPerChannel / 8 * desc.mChannelsPerFrame;
+        desc.mBytesPerPacket = desc.mBytesPerFrame * desc.mFramesPerPacket;
+        
+        CMSampleBufferRef buff = NULL;
+        CMFormatDescriptionRef format = NULL;
+        
+        OSStatus status = CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &desc, 0, NULL, 0, NULL, NULL, &format);
+        if (status)
+        {
+            NSLog(@"CMAudioFormatDescriptionCreate status %@", @(status));
+            return status;
+        }
+        
+        CMSampleTimingInfo timing = {CMTimeMake(1, 48000), kCMTimeZero, kCMTimeInvalid};
+        
+        status = CMSampleBufferCreate(kCFAllocatorDefault, NULL, false, NULL, NULL, format, (CMItemCount)inNumberFrames, 1, &timing, 0, NULL, &buff);
+        if (status)
+        {
+            NSLog(@"CMSampleBufferCreate status %@", @(status));
+            return status;
+        }
+
+        AudioBuffer buffer;
+        buffer.mData = NULL;
+        buffer.mDataByteSize = 0;
+        buffer.mNumberChannels = 2;
+        
+        AudioBufferList buffers;
+        buffers.mNumberBuffers = 1;
+        buffers.mBuffers[0] = buffer;
+
+        status = AudioUnitRender(ref.componetInstance, ioActionFlags, inTimeStamp, inBusNumber, inNumberFrames, &buffers);
+        if (status)
+        {
+            NSLog(@"AudioUnitRender status %@", @(status));
+            return status;
+        }
+        
+        status = CMSampleBufferSetDataBufferFromAudioBufferList(buff, kCFAllocatorDefault, kCFAllocatorDefault, 0, &buffers);
+        if (!status)
+        {
+            [ref.aacEncoder startEncode:buff];
+        }
+        
+        return status;
     }
-    
-    source.captureAudioFrameCount++;
-    NSLog(@"handleInputBuffer captureAudioFrameCount %@, mSampleTime %@, mHostTime %@, inBusNumber %@, inNumberFrames %@", @(source.captureAudioFrameCount), @(inTimeStamp->mSampleTime), @(inTimeStamp->mHostTime), @(inBusNumber), @(inNumberFrames));
-    
-    AudioBuffer buffer;
-    buffer.mData = NULL;
-    buffer.mDataByteSize = 0;
-    buffer.mNumberChannels = 1;
-    
-    AudioBufferList buffers;
-    buffers.mNumberBuffers = 1;
-    buffers.mBuffers[0] = buffer;
-    
-    OSStatus status = AudioUnitRender(source.componetInstance, ioActionFlags, inTimeStamp, inBusNumber, inNumberFrames, &buffers);
-    if (!status)
-    {
-        NSData *audioData = [NSData dataWithBytes:buffers.mBuffers[0].mData length:buffers.mBuffers[0].mDataByteSize];
-//        [source captureOutput:audioData];
-        NSLog(@"handleInputBuffer audioData length %@", @(audioData.length));
-    }
-    
-    return status;
 }
 
 #pragma - mark - Camera
@@ -580,10 +621,14 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         if (device.position == AVCaptureDevicePositionFront)
         {
             self.cameraDeviceFront = device;
+            NSArray *array = device.formats;
+            NSLog(@"videoDevice Front formats %@", array);
         }
         else if(device.position == AVCaptureDevicePositionBack)
         {
             self.cameraDeviceBack = device;
+            NSArray *array = device.formats;
+            NSLog(@"videoDevice Back formats %@", array);
         }
     }
     
