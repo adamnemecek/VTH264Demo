@@ -30,7 +30,7 @@
         if (buf[i] == 0x00 && buf[i + 1] == 0x00 && buf[i + 2] == 0x01)
         {
             i = i + 3;
-            int pos = i;
+            int pos = (int)i;
             while (pos + 2 < size)
             {
                 if (buf[pos] == 0x00 && buf[pos + 1] == 0x00 && buf[pos + 2] == 0x01)
@@ -43,7 +43,7 @@
             
             if (pos + 2 == size)
             {
-                (*nalu).size = pos + 2 - i;
+                (*nalu).size = (int)(pos + 2 - i);
             }
             else
             {
@@ -52,7 +52,7 @@
                     pos--;
                 }
                 
-                (*nalu).size = pos - i;
+                (*nalu).size = (int)(pos - i);
             }
             
             (*nalu).type = buf[i] & 0x1f;

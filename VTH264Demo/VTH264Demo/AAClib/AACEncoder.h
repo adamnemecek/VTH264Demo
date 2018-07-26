@@ -20,7 +20,7 @@
 
 @property (nonatomic, weak) id<AACEncoderDelegate> delegate;
 
-- (void)startEncode:(CMSampleBufferRef)sampleBuffer;
+- (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp;
 - (void)endEncode;
 
 @end

@@ -200,15 +200,21 @@ void didDecompressH264(void *decompressionOutputRefCon, void *sourceFrameRefCon,
         return;
     }
     
+    if (kVTDecodeInfo_FrameDropped & infoFlags)
+    {
+        NSLog(@"video frame droped");
+        return;
+    }
+    
     CVPixelBufferRef *outputPixelBuffer = (CVPixelBufferRef *)sourceFrameRefCon;
     *outputPixelBuffer = CVPixelBufferRetain(pixelBuffer);
     
     H264HwDecoder *decoder = (__bridge H264HwDecoder *)decompressionOutputRefCon;
-    if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedData:)])
+    if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedData:presentationTimeStamp:presentationDuration:)])
     {
         dispatch_async(decoder.dataCallbackQueue, ^{
             
-            [decoder.delegate getDecodedData:pixelBuffer];
+            [decoder.delegate getDecodedData:pixelBuffer presentationTimeStamp:presentationTimeStamp presentationDuration:presentationDuration];
         });
     }
 }

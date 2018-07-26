@@ -37,6 +37,7 @@ unsigned d = (darg);                    \
 @end
 
 const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
+const int32_t fps = 24;
 
 @implementation H264ToMp4
 
@@ -114,12 +115,14 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
             {
                 isIFrame = YES;
             }
+            
             frame_size = naluUnit.size + 4;
             uint8_t *frame_data = (uint8_t *)calloc(1, naluUnit.size + 4);//avcc header 占用4个字节
             uint32_t littleLength = CFSwapInt32HostToBig(naluUnit.size);
             uint8_t *lengthAddress = (uint8_t *)&littleLength;
             memcpy(frame_data, lengthAddress, 4);
-            memcpy(frame_data+4, naluUnit.data, naluUnit.size);
+            memcpy(frame_data + 4, naluUnit.data, naluUnit.size);
+            
             NSLog(@"frame_data:%d, %d, %d, %d", *frame_data, *(frame_data + 1), *(frame_data + 3), *(frame_data + 3));
             [self pushH264Data:frame_data length:frame_size isIFrame:isIFrame timeOffset:0];
             free(frame_data);
@@ -157,8 +160,9 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
         [_assetWriter addInput:_videoWriteInput];
     }
     
+    //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
     _videoWriteInput.expectsMediaDataInRealTime = YES;
-    _startTime = CMTimeMake(0, TIME_SCALE);
+    _startTime = CMTimeMake(1, 24);
     if ([_assetWriter startWriting])
     {
         [_assetWriter startSessionAtSourceTime:_startTime];
@@ -194,7 +198,7 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
     AV_W8(p + 4, 0xff); /* 6 bits reserved (111111) + 2 bits nal size length - 3 (11) */
     AV_W8(p + 5, 0xe1); /* 3 bits reserved (111) + 5 bits number of sps (00001) */
     AV_WB16(p + 6, sps_data_size);
-    memcpy(p + 8,sps_data, sps_data_size);
+    memcpy(p + 8, sps_data, sps_data_size);
     p += 8 + sps_data_size;
     AV_W8(p + 0, 1); /* number of pps */
     AV_WB16(p + 1, pps_data_size);
@@ -247,35 +251,25 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
     }
     
     result = CMBlockBufferReplaceDataBytes([data bytes], blockBuffer, 0, [data length]);
-
+    
     const size_t sampleSizes[] = {[data length]};
     CMTime pts = [self timeWithFrame:_frameIndex];
     
     CMSampleTimingInfo timeInfoArray[1] = { {
         .duration = CMTimeMake(0, 0),
-        .presentationTimeStamp = CMTimeMake(_frameIndex, 24),
+        .presentationTimeStamp = pts,
         .decodeTimeStamp = CMTimeMake(0, 0),
     } };
     
-    result = CMSampleBufferCreate(kCFAllocatorDefault,//
-                                  blockBuffer,//dataBuffer
-                                  YES,//dataReady
-                                  NULL,//makeDataReadyCallback
-                                  NULL,//makeDataReadyRefcon
-                                  formatDescription,
-                                  1,//numSamples
-                                  1,//numSampleTimingEntries
-                                  timeInfoArray,//
-                                  1,
-                                  sampleSizes,//sampleSizeArray
-                                  &sampleBuffer);
+    result = CMSampleBufferCreate(kCFAllocatorDefault, blockBuffer, YES, NULL, NULL, formatDescription, 1, 1, timeInfoArray, 1, sampleSizes, &sampleBuffer);
     if (result != noErr)
     {
         NSLog(@"CMSampleBufferCreate result:%d", (int)result);
         return NULL;
     }
-    
+
     _frameIndex++;
+    NSLog(@"frameIndex:%d", _frameIndex);
     
     return sampleBuffer;
 }
@@ -312,10 +306,10 @@ const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
     }];
 }
 
-- (CMTime)timeWithFrame:(int)frameIndex
+- (CMTime) timeWithFrame:(int)frameIndex
 {
-    int64_t pts = (frameIndex * 40ll) * (TIME_SCALE / 1000);
-    NSLog(@"pts:%lld", pts);
+    int64_t pts = (frameIndex*40ll) *(TIME_SCALE/1000);
+    NSLog(@"pts:%lld",pts);
     return CMTimeMake(pts, TIME_SCALE);
 }
 

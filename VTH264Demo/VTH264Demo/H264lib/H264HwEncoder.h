@@ -13,14 +13,14 @@
 @protocol H264HwEncoderDelegate <NSObject>
 
 - (void)getSpsPps:(NSData *)sps pps:(NSData *)pps;
-- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame;
+- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp;
 
 @end
 
 @interface H264HwEncoder : NSObject
 
 - (void)initEncode:(int)width height:(int)height;
-- (void)startEncode:(CMSampleBufferRef)sampleBuffer;
+- (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp;
 - (void)endEncode;
 
 @property (nonatomic, weak) id<H264HwEncoderDelegate> delegate;

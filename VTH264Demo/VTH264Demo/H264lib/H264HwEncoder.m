@@ -48,7 +48,7 @@
     VTCompressionSessionPrepareToEncodeFrames(encodingSession);
 }
 
-- (void)startEncode:(CMSampleBufferRef)sampleBuffer
+- (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp
 {
     if (encodingSession == nil)
     {
@@ -57,11 +57,17 @@
 
     self.frameCount++;
     CVImageBufferRef imageBuffer = (CVImageBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
+    
+    //fps 24 一秒24帧足够
     CMTime presentationTimeStamp = CMTimeMake(self.frameCount, 24);
+    CMTime duration = CMTimeMake(1, 24);
+    
+    //传递编码之前的视频采集时间戳
+    NSNumber *timeNumber = @(timeStamp);
     
     //硬编码系统缺省都是异步执行
     VTEncodeInfoFlags flags;
-    OSStatus statusCode = VTCompressionSessionEncodeFrame(encodingSession, imageBuffer, presentationTimeStamp, kCMTimeInvalid, NULL, NULL, &flags);
+    OSStatus statusCode = VTCompressionSessionEncodeFrame(encodingSession, imageBuffer, presentationTimeStamp, duration, NULL, (__bridge_retained void *)timeNumber, &flags);
     if (statusCode != noErr)
     {
         [self endEncode];
@@ -106,10 +112,15 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
     {
         return;
     }
-    
-    NSLog(@"\r\n%@", dic);
 
+    CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
+    CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
+
+    NSLog(@"didCompressH264 currentTime %@, timescale %@, duration %@, durationScale %@, des %@, dic %@", @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), des, dic);
+    
     H264HwEncoder *encoder = (__bridge H264HwEncoder *)outputCallbackRefCon;
+    uint64_t timeStamp = [((__bridge_transfer NSNumber *)sourceFrameRefCon) longLongValue];
     
     BOOL keyframe = !CFDictionaryContainsKey(dic, kCMSampleAttachmentKey_NotSync);
     if (keyframe)
@@ -152,11 +163,11 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
             memcpy(&NALUnitLength, dataPointer + bufferOffset, AVCCHeaderLength);
             NALUnitLength = CFSwapInt32BigToHost(NALUnitLength);
             NSData *data = [[NSData alloc] initWithBytes:(dataPointer + bufferOffset + AVCCHeaderLength) length:NALUnitLength];
-            if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedVideoData:isKeyFrame:)])
+            if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedVideoData:isKeyFrame:timeStamp:)])
             {
                 dispatch_async(encoder.dataCallbackQueue, ^{
                     
-                    [encoder.delegate getEncodedVideoData:data isKeyFrame:keyframe];
+                    [encoder.delegate getEncodedVideoData:data isKeyFrame:keyframe timeStamp:timeStamp];
                 });
             }
             bufferOffset += AVCCHeaderLength + NALUnitLength;

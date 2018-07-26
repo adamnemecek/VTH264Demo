@@ -16,7 +16,7 @@
 
 @implementation AACEncoder
 
-- (void)startEncode:(CMSampleBufferRef)sampleBuffer
+- (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp
 {
     char aacData[4096] = {0};
     int aacLen = sizeof(aacData);

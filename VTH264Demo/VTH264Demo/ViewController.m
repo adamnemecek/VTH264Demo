@@ -20,8 +20,10 @@
 #import "AACDecoder.h"
 #import "AACHelper.h"
 
+#define NOW                 (CACurrentMediaTime() * 1000)
+
 //采用audiotoolbox还是采用AVCapture来采集音频
-#define USE_AUDIO_TOOLBOX   1
+#define USE_AUDIO_TOOLBOX   0
 
 #define H264_FILE_NAME      @"test.h264"
 #define MP4_FILE_NAME       @"test.mp4"
@@ -57,6 +59,7 @@
 @property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureVideoFrameCount;
 @property (nonatomic, assign) NSUInteger encodeVideoFrameCount;
+@property (nonatomic, assign) NSUInteger decodeVideoFrameCount;
 @property (nonatomic, strong) NSString *h264File;
 @property (nonatomic, strong) NSString *mp4File;
 @property (nonatomic, assign) CGSize fileSize;
@@ -708,7 +711,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         status = CMSampleBufferSetDataBufferFromAudioBufferList(buff, kCFAllocatorDefault, kCFAllocatorDefault, 0, &buffers);
         if (!status)
         {
-            [ref.aacEncoder startEncode:buff];
+            [ref.aacEncoder startEncode:buff timeStamp:0];
         }
         
         return status;
@@ -749,8 +752,9 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     
     AVCaptureVideoDataOutput *outputVideoDevice = [[AVCaptureVideoDataOutput alloc] init];
     
+    //硬解必须是 kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange 或者是kCVPixelFormatType_420YpCbCr8Planar
     NSString *key = (NSString *)kCVPixelBufferPixelFormatTypeKey;
-    NSNumber *val = [NSNumber numberWithUnsignedInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange];
+    NSNumber *val = [NSNumber numberWithUnsignedInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange];
     NSDictionary *videoSettings = [NSDictionary dictionaryWithObject:val forKey:key];
     outputVideoDevice.videoSettings = videoSettings;
     [outputVideoDevice setSampleBufferDelegate:self queue:self.videoDataProcesQueue];
@@ -798,15 +802,24 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 
 #pragma - mark - Use AVSampleBufferDisplayLayer
 //把pixelBuffer包装成samplebuffer送给displayLayer
-- (void)dispatchPixelBuffer:(CVPixelBufferRef)pixelBuffer
+- (void)dispatchPixelBuffer:(CVPixelBufferRef)pixelBuffer presentationTimeStamp:(CMTime)presentationTimeStamp presentationDuration:(CMTime)presentationDuration
 {
     if (!pixelBuffer)
     {
         return;
     }
     
-    //不设置具体时间信息
-    CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
+    //因为CMSampleBuffer只有图片数据，无时间信息，需要在解码时提供额外的时间说明。
+//    CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
+//    int32_t timeSpan = 90000;
+//    CMSampleTimingInfo timing;
+//    timing.presentationTimeStamp = CMTimeMake(0, timeSpan);
+//    timing.duration =  CMTimeMake(3000, timeSpan);
+//    timing.decodeTimeStamp = kCMTimeInvalid;
+    
+    CMTime frameTime = CMTimeMake(1, 30);
+    CMSampleTimingInfo timing = {frameTime, frameTime, kCMTimeInvalid};
+    
     //获取视频信息
     CMVideoFormatDescriptionRef videoInfo = NULL;
     OSStatus result = CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixelBuffer, &videoInfo);
@@ -825,9 +838,16 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     CFRelease(pixelBuffer);
     CFRelease(videoInfo);
     
+    //同步显示
     CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
     CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
-    CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+    
+    //kCMSampleAttachmentKey_DisplayImmediately 为 ture 就不考虑时间戳渲染
+    CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanFalse);
+    
+    //设置CMSampleBufferRef的时间戳
+    CMSampleBufferSetOutputPresentationTimeStamp(sampleBuffer, presentationTimeStamp);
+
     [self enqueueSampleBuffer:sampleBuffer toLayer:self.sampleBufferDisplayLayer];
     CFRelease(sampleBuffer);
 }
@@ -842,6 +862,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         if (layer.status == AVQueuedSampleBufferRenderingStatusFailed)
         {
             NSLog(@"ERROR: %@", layer.error);
+            [layer flush];
         }
         else
         {
@@ -878,24 +899,28 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     {
         CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
         CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
         CVImageBufferRef cameraFrame = CMSampleBufferGetImageBuffer(sampleBuffer);
         int bufferWidth = (int)CVPixelBufferGetWidth(cameraFrame);
         int bufferHeight = (int)CVPixelBufferGetHeight(cameraFrame);
-        
+
         self.captureVideoFrameCount++;
-        NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, bufferWidth %@, bufferHeight %@, des %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(bufferWidth), @(bufferHeight), des);
+        NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, duration %@, durationScale %@, bufferWidth %@, bufferHeight %@, des %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), @(bufferWidth), @(bufferHeight), des);
     
-        [self.h264Encoder startEncode:sampleBuffer];
+        //系统采样返回的时间戳没什么用，这里重新获取时间戳
+        [self.h264Encoder startEncode:sampleBuffer timeStamp:NOW];
     }
     else if (connection == self.connectionAudio)
     {
         CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
         CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
-
-        self.captureAudioFrameCount++;
-        NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@, des %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale), des);
+        CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
         
-        [self.aacEncoder startEncode:sampleBuffer];
+        self.captureAudioFrameCount++;
+        NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@, duration %@, durationScale %@, des %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), des);
+        
+        //系统采样返回的时间戳没什么用，这里重新获取时间戳
+        [self.aacEncoder startEncode:sampleBuffer timeStamp:NOW];
     }
 }
 
@@ -927,10 +952,10 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
-- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame
+- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp
 {
     self.encodeVideoFrameCount++;
-    NSLog(@"getEncodedVideoData data length %@, isKeyFrame %@, frameCount %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount));
+    NSLog(@"getEncodedVideoData data length %@, isKeyFrame %@, frameCount %@, timeStamp %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount), @(timeStamp));
 
     NSData *ByteHeader = [NaluHelper getH264Header];
     NSMutableData *h264Data = [[NSMutableData alloc] init];
@@ -942,8 +967,13 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     
 #pragma - mark - H264HwDecoderDelegate
 
-- (void)getDecodedData:(CVImageBufferRef)imageBuffer
+- (void)getDecodedData:(CVImageBufferRef)imageBuffer presentationTimeStamp:(CMTime)presentationTimeStamp presentationDuration:(CMTime)presentationDuration
 {
+    CGSize bufferSize = CVImageBufferGetDisplaySize(imageBuffer);
+    
+    self.decodeVideoFrameCount++;
+    NSLog(@"getDecodedData decodeVideoFrameCount %@, presentationTimeStamp %@, presentationTimeStampSale %@, presentationDuration %@, presentationDurationSale %@, bufferWidth %@, bufferHeight %@", @(self.decodeVideoFrameCount), @(presentationTimeStamp.value), @(presentationTimeStamp.timescale), @(presentationDuration.value), @(presentationDuration.timescale), @(bufferSize.width), @(bufferSize.height));
+    
     if (imageBuffer)
     {
         if (self.useOpenGLPlayLayer)
@@ -952,7 +982,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         }
         else
         {
-            [self dispatchPixelBuffer:imageBuffer];
+            [self dispatchPixelBuffer:imageBuffer presentationTimeStamp:presentationTimeStamp presentationDuration:presentationDuration];
         }
     }
 }
