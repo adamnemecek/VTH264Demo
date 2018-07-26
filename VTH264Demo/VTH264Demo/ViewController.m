@@ -19,6 +19,7 @@
 #import "AACEncoder.h"
 #import "AACDecoder.h"
 #import "AACHelper.h"
+#import "AACPlayer.h"
 
 #define NOW                 (CACurrentMediaTime() * 1000)
 
@@ -55,6 +56,8 @@
 @property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) AACDecoder *aacDecoder;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
+@property (nonatomic, strong) AACPlayer *aacPlayer;
+@property (nonatomic, assign) BOOL useAacPlayer;
 @property (nonatomic, strong) dispatch_queue_t videoDataProcesQueue;
 @property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
 @property (nonatomic, assign) NSUInteger captureVideoFrameCount;
@@ -289,6 +292,8 @@
     self.sampleBufferDisplayLayer.frame = CGRectMake(0, self.recordLayer.frame.origin.y + self.recordLayer.frame.size.height, self.recordLayer.frame.size.width, self.recordLayer.frame.size.height);
     self.sampleBufferDisplayLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
     self.sampleBufferDisplayLayer.opaque = YES;
+    
+    self.useAacPlayer = YES;
 }
 
 #pragma - mark - UI
@@ -336,6 +341,7 @@
         self.cameraDeviceIsFront = !self.cameraDeviceIsFront;
         [self stopCamera];
         [self initCamera:self.cameraDeviceIsFront];
+        [self initAudio];
         
         CGRect frame = self.recordLayer.frame;
         self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
@@ -344,6 +350,7 @@
 
         [self startCamera];
         self.captureVideoFrameCount = 0;
+        [self startAudio];
     }
 }
 
@@ -509,17 +516,26 @@
 
 - (void)playAACBtnClick:(id)sender
 {
-    //AVPlayer 可以直接播放AAC文件
-    CGSize size = [UIScreen mainScreen].bounds.size;
-    self.avPlayerVC = [[AVPlayerViewController alloc] init];
-    self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.aacFile]];
-    self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
-    self.avPlayerVC.showsPlaybackControls = YES;
-    
-    [self presentViewController:self.avPlayerVC animated:YES completion:^{
+    if (self.useAacPlayer)
+    {
+        //基于audioQueue播放
+        self.aacPlayer = [[AACPlayer alloc] initWithFile:self.aacFile];
+        [self.aacPlayer play];
+    }
+    else
+    {
+        //AVPlayer 可以直接播放AAC文件
+        CGSize size = [UIScreen mainScreen].bounds.size;
+        self.avPlayerVC = [[AVPlayerViewController alloc] init];
+        self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.aacFile]];
+        self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
+        self.avPlayerVC.showsPlaybackControls = YES;
         
-        [self.avPlayerVC.player play];
-    }];
+        [self presentViewController:self.avPlayerVC animated:YES completion:^{
+            
+            [self.avPlayerVC.player play];
+        }];
+    }
 }
 
 #pragma - mark - Audio
@@ -981,7 +997,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 
 #pragma - mark - AACEncoderDelegate
 
-- (void)getEncodedAudioData:(NSData *)data
+- (void)getEncodedAudioData:(NSData *)data timeStamp:(uint64_t)timeStamp
 {
     self.encodeAudioFrameCount++;
     NSLog(@"getEncodedAudioData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));

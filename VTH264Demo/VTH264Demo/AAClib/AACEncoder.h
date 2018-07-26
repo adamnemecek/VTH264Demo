@@ -12,7 +12,7 @@
 
 @protocol AACEncoderDelegate <NSObject>
 
-- (void)getEncodedAudioData:(NSData *)data;
+- (void)getEncodedAudioData:(NSData *)data timeStamp:(uint64_t)timeStamp;
 
 @end
 
