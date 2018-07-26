@@ -84,7 +84,7 @@
         status = CMSampleBufferCreateReady(kCFAllocatorDefault, blockBuffer, decoderFormatDescription, 1, 0, NULL, 1, sampleSizeArray, &sampleBuffer);
         if (status == kCMBlockBufferNoErr && sampleBuffer)
         {
-            VTDecodeFrameFlags flags;
+            VTDecodeFrameFlags flags = 0;
             if (self.enableAsynDecompression)
             {
                 flags = kVTDecodeFrame_EnableAsynchronousDecompression;
@@ -210,11 +210,11 @@ void didDecompressH264(void *decompressionOutputRefCon, void *sourceFrameRefCon,
     *outputPixelBuffer = CVPixelBufferRetain(pixelBuffer);
     
     H264HwDecoder *decoder = (__bridge H264HwDecoder *)decompressionOutputRefCon;
-    if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedData:presentationTimeStamp:presentationDuration:)])
+    if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedVideoData:)])
     {
         dispatch_async(decoder.dataCallbackQueue, ^{
             
-            [decoder.delegate getDecodedData:pixelBuffer presentationTimeStamp:presentationTimeStamp presentationDuration:presentationDuration];
+            [decoder.delegate getDecodedVideoData:pixelBuffer];
         });
     }
 }

@@ -162,7 +162,7 @@ const int32_t fps = 24;
     
     //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
     _videoWriteInput.expectsMediaDataInRealTime = YES;
-    _startTime = CMTimeMake(1, 24);
+    _startTime = CMTimeMake(0, TIME_SCALE);
     if ([_assetWriter startWriting])
     {
         [_assetWriter startSessionAtSourceTime:_startTime];
@@ -268,7 +268,7 @@ const int32_t fps = 24;
         return NULL;
     }
 
-    _frameIndex++;
+//    _frameIndex++;
     NSLog(@"frameIndex:%d", _frameIndex);
     
     return sampleBuffer;
@@ -306,10 +306,11 @@ const int32_t fps = 24;
     }];
 }
 
-- (CMTime) timeWithFrame:(int)frameIndex
+- (CMTime)timeWithFrame:(int)frameIndex
 {
-    int64_t pts = (frameIndex*40ll) *(TIME_SCALE/1000);
+    int64_t pts = (frameIndex * 40ll) * (TIME_SCALE / 1000);
     NSLog(@"pts:%lld",pts);
+    
     return CMTimeMake(pts, TIME_SCALE);
 }
 

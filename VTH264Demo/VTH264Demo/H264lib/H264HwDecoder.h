@@ -12,7 +12,7 @@
 
 @protocol H264HwDecoderDelegate <NSObject>
 
-- (void)getDecodedData:(CVImageBufferRef)imageBuffer presentationTimeStamp:(CMTime)presentationTimeStamp presentationDuration:(CMTime)presentationDuration;
+- (void)getDecodedVideoData:(CVImageBufferRef)imageBuffer;
 
 @end
 
