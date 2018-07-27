@@ -15,7 +15,7 @@
     int adtsLength = 7;
     char *packet = malloc(sizeof(char) * adtsLength);
     // Variables Recycled by addADTStoPacket
-    int profile = 2;  //AAC LC
+    int profile = 2;  //AAC LCd
     //39=MediaCodecInfo.CodecProfileLevel.AACObjectELD;
     NSInteger freqIdx = [self sampleRateIndex:44100];  //44.1KHz
     int chanCfg = (int)channel;  //MPEG-4 Audio Channel Configuration. 1 Channel front-center

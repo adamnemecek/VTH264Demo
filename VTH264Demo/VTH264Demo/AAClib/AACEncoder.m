@@ -33,7 +33,7 @@
 
 - (BOOL)createAudioConvert:(CMSampleBufferRef)sampleBuffer
 {
-    //根据输入样本初始化一个编码转换器
+    // 根据输入样本初始化一个编码转换器
     if (self.audioConverter != nil)
     {
         return TRUE;
@@ -42,15 +42,17 @@
     CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
     // 输入音频格式
     AudioStreamBasicDescription inputFormat = *(CMAudioFormatDescriptionGetStreamBasicDescription(des));
-    AudioStreamBasicDescription outputFormat; // 这里开始是输出音频格式
+    
+    // 这里开始是输出音频格式
+    AudioStreamBasicDescription outputFormat;
     memset(&outputFormat, 0, sizeof(outputFormat));
     outputFormat.mSampleRate = inputFormat.mSampleRate; // 采样率保持一致
     outputFormat.mFormatID = kAudioFormatMPEG4AAC; // AAC编码
     outputFormat.mFormatFlags = kMPEG4Object_AAC_LC; //用这个硬解码偶尔会失败
-    outputFormat.mChannelsPerFrame = inputFormat.mChannelsPerFrame;
-    outputFormat.mFramesPerPacket = 1024; // AAC一帧是1024个字节
+    outputFormat.mChannelsPerFrame = inputFormat.mChannelsPerFrame; // 1:单声道；2:立体声
+    outputFormat.mFramesPerPacket = 1024; // 每个Packet的帧数量, AAC一帧是1024个字节
 
-    //硬编码
+    // 硬编码
     AudioClassDescription *desc = [self getAudioClassDescriptionWithType:kAudioFormatMPEG4AAC fromManufacturer:kAppleHardwareAudioCodecManufacturer];
     OSStatus result = AudioConverterNewSpecific(&inputFormat, &outputFormat, 1, desc, &_audioConverter);
     if (result != noErr)
@@ -59,7 +61,7 @@
         return NO;
     }
 
-    //设置编码器属性
+    // 设置编码器属性
     UInt32 temp = kAudioConverterQuality_Medium;
     result = AudioConverterSetProperty(_audioConverter, kAudioConverterCodecQuality, sizeof(temp), &temp);
     if (result != noErr)
@@ -67,7 +69,8 @@
         NSLog(@"设置质量失败");
     }
 
-    //设置比特率
+    // 设置比特率 需要注意，AAC并不是随便的码率都可以支持。
+    // 比如如果PCM采样率是44100KHz，那么码率可以设置64000bps，如果是16K，可以设置为32000bps。
     UInt32 bitRate = 32000;
     result = AudioConverterSetProperty(_audioConverter, kAudioConverterEncodeBitRate, sizeof(bitRate), &bitRate);
     if (result != noErr)
@@ -75,6 +78,14 @@
         NSLog(@"设置比特率失败");
     }
    
+    UInt32 value = 0;
+    UInt32 size = sizeof(value);
+    result = AudioConverterGetProperty(_audioConverter, kAudioConverterPropertyMaximumOutputPacketSize, &size, &value);
+    if (result == noErr)
+    {
+        NSLog(@"max packet size %@", @(value));
+    }
+    
     return YES;
 }
 

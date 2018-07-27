@@ -915,7 +915,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         self.captureVideoFrameCount++;
         NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, duration %@, durationScale %@, bufferWidth %@, bufferHeight %@, des %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), @(bufferWidth), @(bufferHeight), des);
     
-        //系统采样返回的时间戳没什么用，这里重新获取时间戳
+        //系统采样返回的时间戳 对于 AVAssetWriter 本地写文件有用，网络传输没什么用，这里重新获取时间戳
         [self.h264Encoder startEncode:sampleBuffer timeStamp:NOW];
     }
     else if (connection == self.connectionAudio)
@@ -927,7 +927,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         self.captureAudioFrameCount++;
         NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@, duration %@, durationScale %@, des %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), des);
         
-        //系统采样返回的时间戳没什么用，这里重新获取时间戳
+        //系统采样返回的时间戳 对于 AVAssetWriter 本地写文件有用，网络传输没什么用，这里重新获取时间戳
         [self.aacEncoder startEncode:sampleBuffer timeStamp:NOW];
     }
 }

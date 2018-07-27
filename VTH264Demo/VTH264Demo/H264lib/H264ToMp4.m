@@ -37,7 +37,7 @@ unsigned d = (darg);                    \
 @end
 
 const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
-const int32_t fps = 24;
+const int32_t fps = 25;
 
 @implementation H264ToMp4
 
@@ -55,8 +55,6 @@ const int32_t fps = 24;
 
 - (void)startWriteWithCompletionHandler:(void (^)(void))handler
 {
-    __weak typeof(self) weakSelf = self;
-    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             
         NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.srcFilePath];
@@ -79,11 +77,12 @@ const int32_t fps = 24;
         NSData *pps = nil;
         int frame_size = 0;
         NSUInteger curPos = 0;
+        NSUInteger frameIndex = 0;
         
         while ([NaluHelper readOneNaluFromAnnexBFormatH264:&naluUnit data:allData curPos:&curPos])
         {
-            weakSelf.frameIndex++;
-            NSLog(@"naluUnit.type :%d, frameIndex:%d", naluUnit.type, weakSelf.frameIndex);
+            frameIndex++;
+            NSLog(@"naluUnit.type :%d, frameIndex:%@", naluUnit.type, @(frameIndex));
             
             if (naluUnit.type == NAL_SPS || naluUnit.type == NAL_PPS || naluUnit.type == NAL_SEI)
             {
@@ -95,16 +94,17 @@ const int32_t fps = 24;
                 {
                     pps = [NSData dataWithBytes:naluUnit.data length:naluUnit.size];
                 }
-                else
-                {
-                    continue;
-                }
                 
                 if (sps && pps)
                 {
                     [self setupWithSPS:sps PPS:pps];
                 }
                 
+                continue;
+            }
+
+            if (sps == nil || pps == nil)
+            {
                 continue;
             }
             
@@ -226,7 +226,7 @@ const int32_t fps = 24;
     if ([_videoWriteInput isReadyForMoreMediaData])
     {
         [_videoWriteInput appendSampleBuffer:h264Sample];
-        NSLog(@"appendSampleBuffer success");
+        NSLog(@"appendSampleBuffer frameIndex %@ success", @(_frameIndex));
     }
     else
     {
@@ -268,8 +268,7 @@ const int32_t fps = 24;
         return NULL;
     }
 
-//    _frameIndex++;
-    NSLog(@"frameIndex:%d", _frameIndex);
+    _frameIndex++;
     
     return sampleBuffer;
 }
@@ -308,10 +307,12 @@ const int32_t fps = 24;
 
 - (CMTime)timeWithFrame:(int)frameIndex
 {
-    int64_t pts = (frameIndex * 40ll) * (TIME_SCALE / 1000);
-    NSLog(@"pts:%lld",pts);
+    int64_t pts = (frameIndex * (1000.0 / 40)) * (TIME_SCALE / 1000);
+    CMTime time = CMTimeMake(pts, TIME_SCALE);
     
-    return CMTimeMake(pts, TIME_SCALE);
+    NSLog(@"frameIndex %@, pts %@", @(frameIndex), @(pts));
+    
+    return time;
 }
 
 @end
