@@ -101,7 +101,7 @@ const int AACAudioQueueBufferCount = 2;
 
 - (void)createAudioOutputQueue:(NSData *)magicCookie
 {
-    OSStatus status = AudioQueueNewOutput(&_format,AACAudioQueueOutputCallback, (__bridge void *)(self), NULL, NULL, 0, &_audioQueue);
+    OSStatus status = AudioQueueNewOutput(&_format, AACAudioQueueOutputCallback, (__bridge void *)(self), NULL, NULL, 0, &_audioQueue);
     if (status != noErr)
     {
         _audioQueue = NULL;

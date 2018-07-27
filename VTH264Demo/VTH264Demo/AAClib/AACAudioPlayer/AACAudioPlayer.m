@@ -22,7 +22,7 @@
     pthread_mutex_t _mutex;
 	pthread_cond_t _cond;
     
-    MCSAPStatus _status;
+    AACAPStatus _status;
     
     unsigned long long _fileSize;
     unsigned long long _offset;
@@ -56,7 +56,7 @@
     self = [super init];
     if (self)
     {
-        _status = MCSAPStatusStopped;
+        _status = AACAPStatusStopped;
         
         _filePath = filePath;
         _fileType = fileType;
@@ -107,7 +107,7 @@
     _audioQueue = nil;
     
     //destory mutex & cond
-    [self _mutexDestory];
+    [self mutexDestory];
     
     _started = NO;
     _timingOffset = 0;
@@ -117,21 +117,21 @@
     _stopRequired = NO;
     
     //reset status
-    [self setStatusInternal:MCSAPStatusStopped];
+    [self setStatusInternal:AACAPStatusStopped];
 }
 
 #pragma mark - status
 - (BOOL)isPlayingOrWaiting
 {
-    return self.status == MCSAPStatusWaiting || self.status == MCSAPStatusPlaying || self.status == MCSAPStatusFlushing;
+    return self.status == AACAPStatusWaiting || self.status == AACAPStatusPlaying || self.status == AACAPStatusFlushing;
 }
 
-- (MCSAPStatus)status
+- (AACAPStatus)status
 {
     return _status;
 }
 
-- (void)setStatusInternal:(MCSAPStatus)status
+- (void)setStatusInternal:(AACAPStatus)status
 {
     if (_status == status)
     {
@@ -144,26 +144,26 @@
 }
 
 #pragma mark - mutex
-- (void)_mutexInit
+- (void)mutexInit
 {
     pthread_mutex_init(&_mutex, NULL);
     pthread_cond_init(&_cond, NULL);
 }
 
-- (void)_mutexDestory
+- (void)mutexDestory
 {
     pthread_mutex_destroy(&_mutex);
     pthread_cond_destroy(&_cond);
 }
 
-- (void)_mutexWait
+- (void)mutexWait
 {
     pthread_mutex_lock(&_mutex);
     pthread_cond_wait(&_cond, &_mutex);
 	pthread_mutex_unlock(&_mutex);
 }
 
-- (void)_mutexSignal
+- (void)mutexSignal
 {
     pthread_mutex_lock(&_mutex);
     pthread_cond_signal(&_cond);
@@ -227,9 +227,9 @@
         return;
     }
     
-    [self setStatusInternal:MCSAPStatusWaiting];
+    [self setStatusInternal:AACAPStatusWaiting];
     BOOL isEof = NO;
-    while (self.status != MCSAPStatusStopped && !_failed && _started)
+    while (self.status != AACAPStatusStopped && !_failed && _started)
     {
         @autoreleasepool
         {
@@ -240,7 +240,9 @@
                 {
                     _audioFile = [[AACAudioFile alloc] initWithFilePath:_filePath fileType:_fileType];
                 }
+                
                 [_audioFile seekToTime:_seekTime];
+                
                 if ([_buffer bufferedSize] < _bufferSize || !_audioQueue)
                 {
                     NSArray *parsedData = [_audioFile parseData:&isEof];
@@ -265,7 +267,9 @@
                     {
                         isEof = YES;
                     }
+                    
                     [_audioFileStream parseData:data error:&error];
+                    
                     if (error)
                     {
                         _usingAudioFile = YES;
@@ -273,9 +277,7 @@
                     }
                 }
             }
-            
-            
-            
+
             if (_audioFileStream.readyToProducePackets || _usingAudioFile)
             {
                 if (![self createAudioQueue])
@@ -289,7 +291,7 @@
                     continue;
                 }
                 
-                if (self.status == MCSAPStatusFlushing && !_audioQueue.isRunning)
+                if (self.status == AACAPStatusFlushing && !_audioQueue.isRunning)
                 {
                     break;
                 }
@@ -306,9 +308,9 @@
                 //pause
                 if (_pauseRequired)
                 {
-                    [self setStatusInternal:MCSAPStatusPaused];
+                    [self setStatusInternal:AACAPStatusPaused];
                     [_audioQueue pause];
-                    [self _mutexWait];
+                    [self mutexWait];
                     _pauseRequired = NO;
                 }
                 
@@ -320,7 +322,7 @@
                     NSData *data = [_buffer dequeueDataWithSize:_bufferSize packetCount:&packetCount descriptions:&desces];
                     if (packetCount != 0)
                     {
-                        [self setStatusInternal:MCSAPStatusPlaying];
+                        [self setStatusInternal:AACAPStatusPlaying];
                         _failed = ![_audioQueue playData:data packetCount:packetCount packetDescriptions:desces isEof:isEof];
                         free(desces);
                         if (_failed)
@@ -331,7 +333,7 @@
                         if (![_buffer hasData] && isEof && _audioQueue.isRunning)
                         {
                             [_audioQueue stop:NO];
-                            [self setStatusInternal:MCSAPStatusFlushing];
+                            [self setStatusInternal:AACAPStatusFlushing];
                         }
                     }
                     else if (isEof)
@@ -340,7 +342,7 @@
                         if (![_buffer hasData] && _audioQueue.isRunning)
                         {
                             [_audioQueue stop:NO];
-                            [self setStatusInternal:MCSAPStatusFlushing];
+                            [self setStatusInternal:AACAPStatusFlushing];
                         }
                     }
                     else
@@ -353,10 +355,11 @@
                 //seek
                 if (_seekRequired && self.duration != 0)
                 {
-                    [self setStatusInternal:MCSAPStatusWaiting];
+                    [self setStatusInternal:AACAPStatusWaiting];
                     
                     _timingOffset = _seekTime - _audioQueue.playedTime;
                     [_buffer clean];
+                    
                     if (_usingAudioFile)
                     {
                         [_audioFile seekToTime:_seekTime];
@@ -366,6 +369,7 @@
                         _offset = [_audioFileStream seekToTime:&_seekTime];
                         [_fileHandler seekToFileOffset:_offset];
                     }
+                    
                     _seekRequired = NO;
                     [_audioQueue reset];
                 }
@@ -377,8 +381,8 @@
     [self cleanup];
 }
 
+#pragma - mark - interrupt
 
-#pragma mark - interrupt
 - (void)interruptHandler:(NSNotification *)notification
 {
     UInt32 interruptionState = [notification.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntValue];
@@ -387,7 +391,7 @@
     {
         _pausedByInterrupt = YES;
         [_audioQueue pause];
-        [self setStatusInternal:MCSAPStatusPaused];
+        [self setStatusInternal:AACAPStatusPaused];
         
     }
     else if (interruptionState == AVAudioSessionInterruptionTypeEnded)
@@ -395,7 +399,7 @@
         AVAudioSessionInterruptionType interruptionType = [notification.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntValue];
         if (interruptionType == AVAudioSessionInterruptionOptionShouldResume)
         {
-            if (self.status == MCSAPStatusPaused && _pausedByInterrupt)
+            if (self.status == AACAPStatusPaused && _pausedByInterrupt)
             {
                 if ([[AVAudioSession sharedInstance] setActive:YES error:NULL])
                 {
@@ -406,13 +410,15 @@
     }
 }
 
-#pragma mark - parser
+#pragma - mark - parser
+
 - (void)audioFileStream:(AACAudioFileStream *)audioFileStream audioDataParsed:(NSArray *)audioData
 {
     [_buffer enqueueFromDataArray:audioData];
 }
 
-#pragma mark - progress
+#pragma - mark - progress
+
 - (NSTimeInterval)progress
 {
     if (_seekRequired)
@@ -433,40 +439,41 @@
     return _usingAudioFile ? _audioFile.duration : _audioFileStream.duration;
 }
 
-#pragma mark - method
+#pragma - mark - method
+
 - (void)play
 {
     if (!_started)
     {
         _started = YES;
-        [self _mutexInit];
+        [self mutexInit];
         _thread = [[NSThread alloc] initWithTarget:self selector:@selector(threadMain) object:nil];
         [_thread start];
     }
     else
     {
-        if (_status == MCSAPStatusPaused || _pauseRequired)
+        if (_status == AACAPStatusPaused || _pauseRequired)
         {
             _pausedByInterrupt = NO;
             _pauseRequired = NO;
             if ([[AVAudioSession sharedInstance] setActive:YES error:NULL])
             {
                 [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
-                [self _resume];
+                [self resume];
             }
         }
     }
 }
 
-- (void)_resume
+- (void)resume
 {
     [_audioQueue resume];
-    [self _mutexSignal];
+    [self mutexSignal];
 }
 
 - (void)pause
 {
-    if (self.isPlayingOrWaiting && self.status != MCSAPStatusFlushing)
+    if (self.isPlayingOrWaiting && self.status != AACAPStatusFlushing)
     {
         _pauseRequired = YES;
     }
@@ -475,6 +482,7 @@
 - (void)stop
 {
     _stopRequired = YES;
-    [self _mutexSignal];
+    [self mutexSignal];
 }
+
 @end

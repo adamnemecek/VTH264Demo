@@ -50,6 +50,7 @@
     if (status != noErr && outError != NULL)
     {
         *outError = [NSError errorWithDomain:NSOSStatusErrorDomain code:status userInfo:nil];
+        NSLog(@"errorForOSStatus %@", *outError);
     }
 }
 
@@ -57,7 +58,7 @@
 
 - (BOOL)openAudioFileStreamWithFileTypeHint:(AudioFileTypeID)fileTypeHint error:(NSError *__autoreleasing *)error
 {
-    OSStatus status = AudioFileStreamOpen((__bridge void *)self, MCSAudioFileStreamPropertyListener, AACAudioFileStreamPacketsCallBack, fileTypeHint, &_audioFileStreamID);
+    OSStatus status = AudioFileStreamOpen((__bridge void *)self, AACAudioFileStreamPropertyListener, AACAudioFileStreamPacketsCallBack, fileTypeHint, &_audioFileStreamID);
     if (status != noErr)
     {
         _audioFileStreamID = NULL;
@@ -157,6 +158,7 @@
     {
         double averagePacketByteSize = _processedPacketsSizeTotal / _processedPacketsCount;
         _bitRate = 8.0 * averagePacketByteSize / _packetDuration;
+        NSLog(@"calculateBitRate %@", @(_bitRate));
     }
 }
 
@@ -165,6 +167,7 @@
     if (_fileSize > 0 && _bitRate > 0)
     {
         _duration = ((_fileSize - _dataOffset) * 8.0) / _bitRate;
+        NSLog(@"calculateDuration %@", @(_duration));
     }
 }
 
@@ -173,6 +176,7 @@
     if (_format.mSampleRate > 0)
     {
         _packetDuration = _format.mFramesPerPacket / _format.mSampleRate;
+        NSLog(@"calculatepPacketDuration %@ ms", @(_packetDuration * 1000));
     }
 }
 
@@ -320,7 +324,7 @@
 
 #pragma - mark - static callbacks
 
-void MCSAudioFileStreamPropertyListener(void *inClientData, AudioFileStreamID inAudioFileStream, AudioFileStreamPropertyID inPropertyID, UInt32 *ioFlags)
+void AACAudioFileStreamPropertyListener(void *inClientData, AudioFileStreamID inAudioFileStream, AudioFileStreamPropertyID inPropertyID, UInt32 *ioFlags)
 {
     AACAudioFileStream *audioFileStream = (__bridge AACAudioFileStream *)inClientData;
     [audioFileStream handleAudioFileStreamProperty:inPropertyID];

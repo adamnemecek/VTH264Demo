@@ -9,20 +9,20 @@
 #import <Foundation/Foundation.h>
 #import <AudioToolbox/AudioFile.h>
 
-typedef NS_ENUM(NSUInteger, MCSAPStatus)
+typedef NS_ENUM(NSUInteger, AACAPStatus)
 {
-    MCSAPStatusStopped = 0,
-    MCSAPStatusPlaying = 1,
-    MCSAPStatusWaiting = 2,
-    MCSAPStatusPaused = 3,
-    MCSAPStatusFlushing = 4,
+    AACAPStatusStopped = 0,
+    AACAPStatusPlaying = 1,
+    AACAPStatusWaiting = 2,
+    AACAPStatusPaused = 3,
+    AACAPStatusFlushing = 4,
 };
 
 @interface AACAudioPlayer : NSObject
 
 @property (nonatomic, copy) NSString *filePath;
 @property (nonatomic, assign) AudioFileTypeID fileType;
-@property (nonatomic, assign) MCSAPStatus status;
+@property (nonatomic, assign) AACAPStatus status;
 @property (nonatomic, assign) BOOL isPlayingOrWaiting;
 @property (nonatomic, assign) BOOL failed;
 @property (nonatomic, assign) NSTimeInterval progress;
