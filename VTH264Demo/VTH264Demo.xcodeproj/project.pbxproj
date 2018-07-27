@@ -9,7 +9,12 @@
 /* Begin PBXBuildFile section */
 		73296D4421087826001B207E /* AACDecoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 73296D4321087825001B207E /* AACDecoder.m */; };
 		73296D4721087C37001B207E /* AACHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 73296D4621087C37001B207E /* AACHelper.m */; };
-		73296D532109DC39001B207E /* AACPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 73296D512109DC39001B207E /* AACPlayer.m */; };
+		734A2312210B1E0100D44129 /* AACAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2307210B1E0100D44129 /* AACAudioBuffer.m */; };
+		734A2313210B1E0100D44129 /* AACAudioFileStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2309210B1E0100D44129 /* AACAudioFileStream.m */; };
+		734A2314210B1E0100D44129 /* AACParsedAudioData.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A230D210B1E0100D44129 /* AACParsedAudioData.m */; };
+		734A2315210B1E0100D44129 /* AACAudioOutputQueue.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A230E210B1E0100D44129 /* AACAudioOutputQueue.m */; };
+		734A2316210B1E0100D44129 /* AACAudioFile.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2310210B1E0100D44129 /* AACAudioFile.m */; };
+		734A2317210B1E0100D44129 /* AACAudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2311210B1E0100D44129 /* AACAudioPlayer.m */; };
 		73B55D5620FEC8F4008C3DE6 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */; };
 		73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D5820FEC8F4008C3DE6 /* ViewController.m */; };
 		73B55D5C20FEC8F4008C3DE6 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 73B55D5A20FEC8F4008C3DE6 /* Main.storyboard */; };
@@ -46,8 +51,18 @@
 		73296D4321087825001B207E /* AACDecoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACDecoder.m; sourceTree = "<group>"; };
 		73296D4521087C37001B207E /* AACHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AACHelper.h; sourceTree = "<group>"; };
 		73296D4621087C37001B207E /* AACHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AACHelper.m; sourceTree = "<group>"; };
-		73296D512109DC39001B207E /* AACPlayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACPlayer.m; sourceTree = "<group>"; };
-		73296D522109DC39001B207E /* AACPlayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACPlayer.h; sourceTree = "<group>"; };
+		734A2306210B1E0100D44129 /* AACParsedAudioData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACParsedAudioData.h; sourceTree = "<group>"; };
+		734A2307210B1E0100D44129 /* AACAudioBuffer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioBuffer.m; sourceTree = "<group>"; };
+		734A2308210B1E0100D44129 /* AACAudioOutputQueue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACAudioOutputQueue.h; sourceTree = "<group>"; };
+		734A2309210B1E0100D44129 /* AACAudioFileStream.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioFileStream.m; sourceTree = "<group>"; };
+		734A230A210B1E0100D44129 /* AACAudioPlayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACAudioPlayer.h; sourceTree = "<group>"; };
+		734A230B210B1E0100D44129 /* AACAudioFile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACAudioFile.h; sourceTree = "<group>"; };
+		734A230C210B1E0100D44129 /* AACAudioBuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACAudioBuffer.h; sourceTree = "<group>"; };
+		734A230D210B1E0100D44129 /* AACParsedAudioData.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACParsedAudioData.m; sourceTree = "<group>"; };
+		734A230E210B1E0100D44129 /* AACAudioOutputQueue.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioOutputQueue.m; sourceTree = "<group>"; };
+		734A230F210B1E0100D44129 /* AACAudioFileStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACAudioFileStream.h; sourceTree = "<group>"; };
+		734A2310210B1E0100D44129 /* AACAudioFile.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioFile.m; sourceTree = "<group>"; };
+		734A2311210B1E0100D44129 /* AACAudioPlayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioPlayer.m; sourceTree = "<group>"; };
 		73B55D5120FEC8F3008C3DE6 /* VTH264Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VTH264Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		73B55D5420FEC8F4008C3DE6 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -118,6 +133,25 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		734A2305210B1E0100D44129 /* AACAudioPlayer */ = {
+			isa = PBXGroup;
+			children = (
+				734A2306210B1E0100D44129 /* AACParsedAudioData.h */,
+				734A230D210B1E0100D44129 /* AACParsedAudioData.m */,
+				734A230C210B1E0100D44129 /* AACAudioBuffer.h */,
+				734A2307210B1E0100D44129 /* AACAudioBuffer.m */,
+				734A2308210B1E0100D44129 /* AACAudioOutputQueue.h */,
+				734A230E210B1E0100D44129 /* AACAudioOutputQueue.m */,
+				734A230F210B1E0100D44129 /* AACAudioFileStream.h */,
+				734A2309210B1E0100D44129 /* AACAudioFileStream.m */,
+				734A230A210B1E0100D44129 /* AACAudioPlayer.h */,
+				734A2311210B1E0100D44129 /* AACAudioPlayer.m */,
+				734A230B210B1E0100D44129 /* AACAudioFile.h */,
+				734A2310210B1E0100D44129 /* AACAudioFile.m */,
+			);
+			path = AACAudioPlayer;
+			sourceTree = "<group>";
+		};
 		73B55D4820FEC8F3008C3DE6 = {
 			isa = PBXGroup;
 			children = (
@@ -262,8 +296,7 @@
 		73D60B952105A68300A2B2B2 /* AAClib */ = {
 			isa = PBXGroup;
 			children = (
-				73296D522109DC39001B207E /* AACPlayer.h */,
-				73296D512109DC39001B207E /* AACPlayer.m */,
+				734A2305210B1E0100D44129 /* AACAudioPlayer */,
 				73296D4221087825001B207E /* AACDecoder.h */,
 				73296D4321087825001B207E /* AACDecoder.m */,
 				73D60B962105A6B400A2B2B2 /* AACEncoder.h */,
@@ -350,17 +383,22 @@
 				73C342F821001E910005BE62 /* GCDWebServerDataRequest.m in Sources */,
 				73C342F421001E910005BE62 /* GCDWebServerDataResponse.m in Sources */,
 				73D60B982105A6B400A2B2B2 /* AACEncoder.m in Sources */,
+				734A2315210B1E0100D44129 /* AACAudioOutputQueue.m in Sources */,
 				73C342F521001E910005BE62 /* GCDWebServerStreamedResponse.m in Sources */,
+				734A2314210B1E0100D44129 /* AACParsedAudioData.m in Sources */,
 				73C342EF21001E910005BE62 /* GCDWebServerFunctions.m in Sources */,
 				73C342F221001E910005BE62 /* GCDWebServerErrorResponse.m in Sources */,
 				73C342F721001E910005BE62 /* GCDWebServerMultiPartFormRequest.m in Sources */,
 				73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */,
-				73296D532109DC39001B207E /* AACPlayer.m in Sources */,
 				73C342F321001E910005BE62 /* GCDWebServerFileResponse.m in Sources */,
 				73C34302210088E20005BE62 /* H264ToMp4.m in Sources */,
 				73296D4421087826001B207E /* AACDecoder.m in Sources */,
+				734A2317210B1E0100D44129 /* AACAudioPlayer.m in Sources */,
 				73B55D7320FECA89008C3DE6 /* H264HwDecoder.m in Sources */,
+				734A2313210B1E0100D44129 /* AACAudioFileStream.m in Sources */,
+				734A2312210B1E0100D44129 /* AACAudioBuffer.m in Sources */,
 				73C342EC21001E910005BE62 /* GCDWebDAVServer.m in Sources */,
+				734A2316210B1E0100D44129 /* AACAudioFile.m in Sources */,
 				73B55D7220FECA89008C3DE6 /* H264HwEncoder.m in Sources */,
 				73C342EE21001E910005BE62 /* GCDWebServerRequest.m in Sources */,
 				73B55D6420FEC8F5008C3DE6 /* main.m in Sources */,

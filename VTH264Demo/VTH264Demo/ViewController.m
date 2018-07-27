@@ -19,7 +19,7 @@
 #import "AACEncoder.h"
 #import "AACDecoder.h"
 #import "AACHelper.h"
-#import "AACPlayer.h"
+#import "AACAudioPlayer.h"
 
 #define NOW                 (CACurrentMediaTime() * 1000)
 
@@ -56,7 +56,7 @@
 @property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) AACDecoder *aacDecoder;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
-@property (nonatomic, strong) AACPlayer *aacPlayer;
+@property (nonatomic, strong) AACAudioPlayer *aacPlayer;
 @property (nonatomic, assign) BOOL useAacPlayer;
 @property (nonatomic, strong) dispatch_queue_t videoDataProcesQueue;
 @property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
@@ -519,7 +519,7 @@
     if (self.useAacPlayer)
     {
         //基于audioQueue播放
-        self.aacPlayer = [[AACPlayer alloc] initWithFile:self.aacFile];
+        self.aacPlayer = [[AACAudioPlayer alloc] initWithFilePath:self.aacFile fileType:kAudioFileAAC_ADTSType];
         [self.aacPlayer play];
     }
     else
