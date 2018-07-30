@@ -19,6 +19,7 @@
 @interface AACEncoder : NSObject
 
 @property (nonatomic, weak) id<AACEncoderDelegate> delegate;
+@property (nonatomic, assign) UInt32 channelsPerFrame; // 1:单声道；2:双声道
 
 - (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp;
 - (void)endEncode;

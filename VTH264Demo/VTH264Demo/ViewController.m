@@ -55,6 +55,7 @@
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AACEncoder *aacEncoder;
 @property (nonatomic, strong) AACDecoder *aacDecoder;
+@property (nonatomic, assign) UInt32 channelsPerFrame;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) AACAudioPlayer *aacPlayer;
 @property (nonatomic, assign) BOOL useAacPlayer;
@@ -144,8 +145,12 @@
     self.h264Decoder.dataCallbackQueue = self.videoDataProcesQueue;
     self.h264Decoder.enableAsynDecompression = self.useasynDecode;
     
+    //按照双声道来编码
+    self.channelsPerFrame = 2; // 1:单声道；2:双声道
+    
     self.aacEncoder = [[AACEncoder alloc] init];
     self.aacEncoder.delegate = self;
+    self.aacEncoder.channelsPerFrame = self.channelsPerFrame;
     
     self.aacDecoder = [[AACDecoder alloc] init];
     self.aacDecoder.delegate = self;
@@ -1017,7 +1022,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     self.encodeAudioFrameCount++;
     NSLog(@"getEncodedAudioData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
 
-    NSData *dataAdts = [AACHelper adtsData:1 dataLength:data.length];
+    NSData *dataAdts = [AACHelper adtsData:self.channelsPerFrame dataLength:data.length];
     NSMutableData *aacData = [[NSMutableData alloc] init];
     [aacData appendData:dataAdts];
     [aacData appendData:data];

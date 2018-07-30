@@ -49,7 +49,7 @@
     outputFormat.mSampleRate = inputFormat.mSampleRate; // 采样率保持一致
     outputFormat.mFormatID = kAudioFormatMPEG4AAC; // AAC编码
     outputFormat.mFormatFlags = kMPEG4Object_AAC_LC; //用这个硬解码偶尔会失败
-    outputFormat.mChannelsPerFrame = inputFormat.mChannelsPerFrame; // 1:单声道；2:立体声
+    outputFormat.mChannelsPerFrame = self.channelsPerFrame; // 1:单声道；2:立体声
     outputFormat.mFramesPerPacket = 1024; // 每个Packet的帧数量, AAC一帧是1024个字节
 
     // 硬编码
@@ -108,7 +108,7 @@
     // 初始化一个输出缓冲列表
     AudioBufferList outBufferList;
     outBufferList.mNumberBuffers = 1;
-    outBufferList.mBuffers[0].mNumberChannels = 2;
+    outBufferList.mBuffers[0].mNumberChannels = self.channelsPerFrame;
     outBufferList.mBuffers[0].mDataByteSize = *aacLen; // 设置缓冲区大小
     outBufferList.mBuffers[0].mData = aacData; // 设置AAC缓冲区
     UInt32 outputDataPacketSize = 1;
