@@ -114,10 +114,11 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
     }
 
     CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
-    CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    CMTime dts = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
     CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
 
-    NSLog(@"didCompressH264 currentTime %@, timescale %@, duration %@, durationScale %@, des %@, dic %@", @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), des, dic);
+    NSLog(@"didCompressH264 pts value %@, pts timescale %@, dts value %@, dts timescale %@, duration value %@, duration timescale %@, des %@, dic %@", @(pts.value), @(pts.timescale), @(dts.value), @(dts.timescale), @(duration.value), @(duration.timescale), des, dic);
     
     H264HwEncoder *encoder = (__bridge H264HwEncoder *)outputCallbackRefCon;
     uint64_t timeStamp = [((__bridge_transfer NSNumber *)sourceFrameRefCon) longLongValue];

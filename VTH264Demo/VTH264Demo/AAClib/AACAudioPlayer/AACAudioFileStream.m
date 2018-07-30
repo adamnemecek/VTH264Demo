@@ -64,6 +64,8 @@
         _audioFileStreamID = NULL;
     }
     
+    NSLog(@"AudioFileStreamOpen status %@", @(status));
+    
     [self errorForOSStatus:status error:error];
     
     return status == noErr;
@@ -182,25 +184,68 @@
 
 - (void)handleAudioFileStreamProperty:(AudioFileStreamPropertyID)propertyID
 {
-    if (propertyID == kAudioFileStreamProperty_ReadyToProducePackets)
+    if (propertyID == kAudioFileStreamProperty_BitRate)
     {
-        _readyToProducePackets = YES;
-        _discontinuous = YES;
-        
-        UInt32 sizeOfUInt32 = sizeof(_maxPacketSize);
-        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_PacketSizeUpperBound, &sizeOfUInt32, &_maxPacketSize);
-        if (status != noErr || _maxPacketSize == 0)
+        // 表示音频数据的码率，获取这个Property是为了计算音频的总时长Duration（因为AudioFileStream没有这样的接口)
+        UInt32 bitRate;
+        UInt32 bitRateSize = sizeof(bitRate);
+        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_BitRate, &bitRateSize, &bitRate);
+        if (status != noErr)
         {
-            status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_MaximumPacketSize, &sizeOfUInt32, &_maxPacketSize);
+            //错误处理
         }
         
-        if (_delegate && [_delegate respondsToSelector:@selector(audioFileStreamReadyToProducePackets:)])
+        NSLog(@"kAudioFileStreamProperty_BitRate %@", @(bitRate));
+    }
+    else if (propertyID == kAudioFileStreamProperty_AudioDataByteCount)
+    {
+        // 音频文件中音频数据的总量。这个Property的作用一是用来计算音频的总时长，二是可以在seek时用来计算时间对应的字节offset。
+        UInt64 audioDataByteCount;
+        UInt32 byteCountSize = sizeof(audioDataByteCount);
+        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_AudioDataByteCount, &byteCountSize, &audioDataByteCount);
+        if (status != noErr)
         {
-            [_delegate audioFileStreamReadyToProducePackets:self];
+            //错误处理
         }
+        
+        NSLog(@"kAudioFileStreamProperty_AudioDataByteCount %@", @(audioDataByteCount));
+    }
+    else if (propertyID == kAudioFileStreamProperty_AudioDataPacketCount)
+    {
+        UInt64 audioDataPacketCount;
+        UInt32 byteCountSize = sizeof(audioDataPacketCount);
+        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_AudioDataPacketCount, &byteCountSize, &audioDataPacketCount);
+        if (status != noErr)
+        {
+            //错误处理
+        }
+        
+        NSLog(@"kAudioFileStreamProperty_AudioDataPacketCount %@", @(audioDataPacketCount));
+    }
+    else if (propertyID == kAudioFileStreamProperty_FileFormat)
+    {
+        UInt32 fileFormat;
+        UInt32 byteCountSize = sizeof(fileFormat);
+        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_FileFormat, &byteCountSize, &fileFormat);
+        if (status != noErr)
+        {
+            //错误处理
+        }
+        
+        Byte byte[4] = {};
+        byte[0] = (Byte)((fileFormat >> 24) & 0xFF);
+        byte[1] = (Byte)((fileFormat >> 16) & 0xFF);
+        byte[2] = (Byte)((fileFormat >> 8) & 0xFF);
+        byte[3] = (Byte)(fileFormat & 0xFF);
+        
+        NSString *string = [NSString stringWithFormat:@"%c%c%c%c", byte[0], byte[1], byte[2], byte[3]];
+        NSLog(@"kAudioFileStreamProperty_FileFormat %@", string);
     }
     else if (propertyID == kAudioFileStreamProperty_DataOffset)
     {
+        // 表示音频数据在整个音频文件中的offset
+        // 因为大多数音频文件都会有一个文件头之后才使真正的音频数据），这个值在seek时会发挥比较大的作用，音频的seek并不是直接seek文件位置而seek时间（比如seek到2分10秒的位置），seek时会根据时间计算出音频数据的字节offset然后需要再加上音频数据的offset才能得到在文件中的真正offset
+
         UInt32 offsetSize = sizeof(_dataOffset);
         AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_DataOffset, &offsetSize, &_dataOffset);
         _audioDataByteCount = _fileSize - _dataOffset;
@@ -208,12 +253,36 @@
     }
     else if (propertyID == kAudioFileStreamProperty_DataFormat)
     {
+        // 表示音频文件结构信息，是一个AudioStreamBasicDescription的结构
         UInt32 asbdSize = sizeof(_format);
         AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_DataFormat, &asbdSize, &_format);
         [self calculatepPacketDuration];
     }
+    else if (propertyID == kAudioFileStreamProperty_MagicCookieData)
+    {
+        UInt32 cookieSize;
+        Boolean writable;
+        OSStatus status = AudioFileStreamGetPropertyInfo(_audioFileStreamID, kAudioFileStreamProperty_MagicCookieData, &cookieSize, &writable);
+        if (status != noErr)
+        {
+            return;
+        }
+        
+        void *cookieData = malloc(cookieSize);
+        status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_MagicCookieData, &cookieSize, cookieData);
+        if (status != noErr)
+        {
+            return;
+        }
+        
+        NSData *cookie = [NSData dataWithBytes:cookieData length:cookieSize];
+        free(cookieData);
+        
+        NSLog(@"kAudioFileStreamProperty_MagicCookieData %@", cookie);
+    }
     else if (propertyID == kAudioFileStreamProperty_FormatList)
     {
+        //作用和kAudioFileStreamProperty_DataFormat是一样的，区别在于用这个PropertyID获取到是一个AudioStreamBasicDescription的数组
         Boolean outWriteable;
         UInt32 formatListSize;
         OSStatus status = AudioFileStreamGetPropertyInfo(_audioFileStreamID, kAudioFileStreamProperty_FormatList, &formatListSize, &outWriteable);
@@ -258,6 +327,30 @@
             }
             free(formatList);
         }
+    }
+    else if (propertyID == kAudioFileStreamProperty_ReadyToProducePackets)
+    {
+        // 一旦回调中这个PropertyID出现就代表解析完成，接下来可以对音频数据进行帧分离了
+        _readyToProducePackets = YES;
+        _discontinuous = YES;
+        
+        UInt32 sizeOfUInt32 = sizeof(_maxPacketSize);
+        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_PacketSizeUpperBound, &sizeOfUInt32, &_maxPacketSize);
+        if (status != noErr || _maxPacketSize == 0)
+        {
+            status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_MaximumPacketSize, &sizeOfUInt32, &_maxPacketSize);
+        }
+        
+        NSLog(@"kAudioFileStreamProperty_ReadyToProducePackets");
+        
+        if (_delegate && [_delegate respondsToSelector:@selector(audioFileStreamReadyToProducePackets:)])
+        {
+            [_delegate audioFileStreamReadyToProducePackets:self];
+        }
+    }
+    else
+    {
+        NSLog(@"handleAudioFileStreamProperty propertyID %@", @(propertyID));
     }
 }
 

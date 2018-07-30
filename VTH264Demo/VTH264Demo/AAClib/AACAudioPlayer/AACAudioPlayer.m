@@ -16,35 +16,26 @@
 
 @interface AACAudioPlayer () <AACAudioFileStreamDelegate>
 
-{
-@private
-    NSThread *_thread;
-    pthread_mutex_t _mutex;
-	pthread_cond_t _cond;
-    
-    AACAPStatus _status;
-    
-    unsigned long long _fileSize;
-    unsigned long long _offset;
-    NSFileHandle *_fileHandler;
-    
-    UInt32 _bufferSize;
-    AACAudioBuffer *_buffer;
-    
-    AACAudioFile *_audioFile;
-    AACAudioFileStream *_audioFileStream;
-    AACAudioOutputQueue *_audioQueue;
-    
-    BOOL _started;
-    BOOL _pauseRequired;
-    BOOL _stopRequired;
-    BOOL _pausedByInterrupt;
-    BOOL _usingAudioFile;
-    
-    BOOL _seekRequired;
-    NSTimeInterval _seekTime;
-    NSTimeInterval _timingOffset;
-}
+@property (nonatomic, strong) NSThread *thread;
+@property (nonatomic, assign) pthread_mutex_t mutex;
+@property (nonatomic, assign) pthread_cond_t cond;
+@property (nonatomic, assign) unsigned long long fileSize;
+@property (nonatomic, assign) unsigned long long offset;
+@property (nonatomic, strong) NSFileHandle *fileHandler;
+@property (nonatomic, assign) UInt32 bufferSize;
+@property (nonatomic, strong) AACAudioBuffer *buffer;
+@property (nonatomic, strong) AACAudioFile *audioFile;
+@property (nonatomic, strong) AACAudioFileStream *audioFileStream;
+@property (nonatomic, strong) AACAudioOutputQueue *audioQueue;
+@property (nonatomic, assign) BOOL started;
+@property (nonatomic, assign) BOOL pauseRequired;
+@property (nonatomic, assign) BOOL stopRequired;
+@property (nonatomic, assign) BOOL pausedByInterrupt;
+@property (nonatomic, assign) BOOL usingAudioFile;
+@property (nonatomic, assign) BOOL seekRequired;
+@property (nonatomic, assign) NSTimeInterval seekTime;
+@property (nonatomic, assign) NSTimeInterval timingOffset;
+
 @end
 
 @implementation AACAudioPlayer

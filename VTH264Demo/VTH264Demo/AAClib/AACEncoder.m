@@ -71,7 +71,7 @@
 
     // 设置比特率 需要注意，AAC并不是随便的码率都可以支持。
     // 比如如果PCM采样率是44100KHz，那么码率可以设置64000bps，如果是16K，可以设置为32000bps。
-    UInt32 bitRate = 32000;
+    UInt32 bitRate = 64000;
     result = AudioConverterSetProperty(_audioConverter, kAudioConverterEncodeBitRate, sizeof(bitRate), &bitRate);
     if (result != noErr)
     {

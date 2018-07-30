@@ -511,7 +511,20 @@
 
 - (void)playMp3BtnClick:(id)sender
 {
-
+    UIButton *button = (UIButton *)sender;
+    if (button.selected == NO)
+    {
+        //基于audioQueue播放
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"MP3Sample" ofType:@"mp3"];
+        self.aacPlayer = [[AACAudioPlayer alloc] initWithFilePath:path fileType:kAudioFileMP3Type];
+        [self.aacPlayer play];
+    }
+    else
+    {
+        [self.aacPlayer stop];
+    }
+    
+    button.selected = !button.selected;
 }
 
 - (void)playAACBtnClick:(id)sender
@@ -906,14 +919,15 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     if (connection == self.connectionVideo)
     {
         CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
-        CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CMTime dts = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
         CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
         CVImageBufferRef cameraFrame = CMSampleBufferGetImageBuffer(sampleBuffer);
         int bufferWidth = (int)CVPixelBufferGetWidth(cameraFrame);
         int bufferHeight = (int)CVPixelBufferGetHeight(cameraFrame);
 
         self.captureVideoFrameCount++;
-        NSLog(@"captureOutput captureVideoFrameCount %@, currentTime %@, timescale %@, duration %@, durationScale %@, bufferWidth %@, bufferHeight %@, des %@", @(self.captureVideoFrameCount), @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), @(bufferWidth), @(bufferHeight), des);
+        NSLog(@"captureOutput captureVideoFrameCount %@, pts value %@, pts timescale %@, dts value %@, dts timescale %@, duration value %@, duration timescale %@, bufferWidth %@, bufferHeight %@, des %@", @(self.captureVideoFrameCount), @(pts.value), @(pts.timescale), @(dts.value), @(dts.timescale), @(duration.value), @(duration.timescale), @(bufferWidth), @(bufferHeight), des);
     
         //系统采样返回的时间戳 对于 AVAssetWriter 本地写文件有用，网络传输没什么用，这里重新获取时间戳
         [self.h264Encoder startEncode:sampleBuffer timeStamp:NOW];
@@ -921,11 +935,12 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     else if (connection == self.connectionAudio)
     {
         CMFormatDescriptionRef des = CMSampleBufferGetFormatDescription(sampleBuffer);
-        CMTime currentTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        CMTime dts = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
         CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
         
         self.captureAudioFrameCount++;
-        NSLog(@"captureOutput captureAudioFrameCount %@, currentTime %@, timescale %@, duration %@, durationScale %@, des %@", @(self.captureAudioFrameCount), @(currentTime.value), @(currentTime.timescale), @(duration.value), @(duration.timescale), des);
+        NSLog(@"captureOutput captureAudioFrameCount %@, pts value %@, pts timescale %@, dts value %@, dts timescale %@, duration value %@, duration timescale %@des %@", @(self.captureAudioFrameCount), @(pts.value), @(pts.timescale), @(dts.value), @(dts.timescale), @(duration.value), @(duration.timescale), des);
         
         //系统采样返回的时间戳 对于 AVAssetWriter 本地写文件有用，网络传输没什么用，这里重新获取时间戳
         [self.aacEncoder startEncode:sampleBuffer timeStamp:NOW];
@@ -1002,7 +1017,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     self.encodeAudioFrameCount++;
     NSLog(@"getEncodedAudioData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
 
-    NSData *dataAdts = [AACHelper adtsData:2 dataLength:data.length];
+    NSData *dataAdts = [AACHelper adtsData:1 dataLength:data.length];
     NSMutableData *aacData = [[NSMutableData alloc] init];
     [aacData appendData:dataAdts];
     [aacData appendData:data];

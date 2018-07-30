@@ -36,7 +36,7 @@ const int AACAudioQueueBufferCount = 2;
 
 #pragma - mark - init & dealloc
 
-- (instancetype)initWithFormat:(AudioStreamBasicDescription)format  bufferSize:(UInt32)bufferSize macgicCookie:(NSData *)macgicCookie
+- (instancetype)initWithFormat:(AudioStreamBasicDescription)format bufferSize:(UInt32)bufferSize macgicCookie:(NSData *)macgicCookie
 {
     self = [super init];
     if (self)
