@@ -37,7 +37,7 @@ unsigned d = (darg);                    \
 @end
 
 const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
-const int32_t fps = 25;
+const int32_t fps = H264_FPS;
 
 @implementation H264ToMp4
 

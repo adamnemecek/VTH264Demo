@@ -11,6 +11,8 @@
 #define h264outputWidth             800
 #define h264outputHeight            600
 
+#define H264_FPS                    24
+
 //nal类型
 typedef enum nal_unit_type_e
 {

@@ -47,7 +47,7 @@
         //或者是kCVPixelFormatType_420YpCbCr8Planar
         //因为iOS是  nv12  其他是nv21
         //这里款高和编码反的
-        NSDictionary *destinationPixelBufferAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey : [NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange], (id)kCVPixelBufferWidthKey : [NSNumber numberWithInt:h264outputHeight * 2], (id)kCVPixelBufferHeightKey : [NSNumber numberWithInt:h264outputWidth * 2], (id)kCVPixelBufferOpenGLCompatibilityKey : [NSNumber numberWithBool:YES]};
+        NSDictionary *destinationPixelBufferAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey : [NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange], (id)kCVPixelBufferWidthKey : [NSNumber numberWithInt:h264outputHeight], (id)kCVPixelBufferHeightKey : [NSNumber numberWithInt:h264outputWidth], (id)kCVPixelBufferOpenGLCompatibilityKey : [NSNumber numberWithBool:YES]};
 
         VTDecompressionOutputCallbackRecord callBackRecord;
         callBackRecord.decompressionOutputCallback = didDecompressH264;
@@ -208,6 +208,13 @@ void didDecompressH264(void *decompressionOutputRefCon, void *sourceFrameRefCon,
     
     CVPixelBufferRef *outputPixelBuffer = (CVPixelBufferRef *)sourceFrameRefCon;
     *outputPixelBuffer = CVPixelBufferRetain(pixelBuffer);
+    
+    CMTime pts = presentationTimeStamp;
+    CMTime duration = presentationDuration;
+    CGFloat width = CVPixelBufferGetWidth(pixelBuffer);
+    CGFloat height = CVPixelBufferGetHeight(pixelBuffer);
+    
+    NSLog(@"didDecompressH264 pts value %@, pts timescale %@, duration value %@, duration timescale %@, bufferWidth %@, bufferHeight %@", @(pts.value), @(pts.timescale), @(duration.value), @(duration.timescale), @(width), @(height));
     
     H264HwDecoder *decoder = (__bridge H264HwDecoder *)decompressionOutputRefCon;
     if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedVideoData:)])

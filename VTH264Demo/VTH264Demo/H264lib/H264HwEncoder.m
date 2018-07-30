@@ -7,6 +7,7 @@
 //
 
 #import "H264HwEncoder.h"
+#import "NaluHelper.h"
 
 @interface H264HwEncoder ()
 {
@@ -59,8 +60,8 @@
     CVImageBufferRef imageBuffer = (CVImageBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
     
     //fps 24 一秒24帧足够
-    CMTime presentationTimeStamp = CMTimeMake(self.frameCount, 24);
-    CMTime duration = CMTimeMake(1, 24);
+    CMTime presentationTimeStamp = CMTimeMake(self.frameCount, H264_FPS);
+    CMTime duration = CMTimeMake(1, H264_FPS);
     
     //传递编码之前的视频采集时间戳
     NSNumber *timeNumber = @(timeStamp);
