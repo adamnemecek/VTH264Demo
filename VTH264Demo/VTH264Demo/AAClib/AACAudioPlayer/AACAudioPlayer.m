@@ -252,7 +252,9 @@
             {
                 if (_offset < _fileSize && (!_audioFileStream.readyToProducePackets || [_buffer bufferedSize] < _bufferSize || !_audioQueue))
                 {
-                    NSData *data = [_fileHandler readDataOfLength:1000];
+                    //每次读3000个字节进行分析
+                    NSData *data = [_fileHandler readDataOfLength:3000];
+                    
                     _offset += [data length];
                     if (_offset >= _fileSize)
                     {

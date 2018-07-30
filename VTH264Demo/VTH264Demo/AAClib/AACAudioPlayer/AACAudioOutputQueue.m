@@ -9,7 +9,7 @@
 #import "AACAudioOutputQueue.h"
 #import <pthread.h>
 
-const int AACAudioQueueBufferCount = 2;
+const int AACAudioQueueBufferCount = 3;
 
 @interface AACAudioQueueBuffer : NSObject
 

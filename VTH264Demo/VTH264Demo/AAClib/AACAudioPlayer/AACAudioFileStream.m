@@ -17,8 +17,8 @@
 @property (nonatomic, assign) AudioFileStreamID audioFileStreamID;
 @property (nonatomic, assign) SInt64 dataOffset;
 @property (nonatomic, assign) NSTimeInterval packetDuration;
-@property (nonatomic, assign) UInt64 processedPacketsCount;
-@property (nonatomic, assign) UInt64 processedPacketsSizeTotal;
+@property (nonatomic, assign) UInt64 processedPacketsCount;         // 记录已解析过的音频包的数量
+@property (nonatomic, assign) UInt64 processedPacketsSizeTotal;     // 记录已解析过的音频包的总容量
 
 @end
 
@@ -34,6 +34,7 @@
         _discontinuous = NO;
         _fileType = fileType;
         _fileSize = fileSize;
+        NSLog(@"fileSize = %@", @(_fileSize));
         [self openAudioFileStreamWithFileTypeHint:_fileType error:error];
     }
     
@@ -123,6 +124,9 @@
         return NO;
     }
     
+    // 第四个参数是说本次的解析和上一次解析是否是连续的关系，如果是连续的传入0，否则传入kAudioFileStreamParseFlag_Discontinuity。
+    // 这里需要插入解释一下何谓“连续”。形如MP3的数据都以帧的形式存在的，解析时也需要以帧为单位解析。但在解码之前我们不可能知道每个帧的边界在第几个字节，所以就会出现这样的情况：我们传给AudioFileStreamParseBytes的数据在解析完成之后会有一部分数据余下来，这部分数据是接下去那一帧的前半部分，如果再次有数据输入需要继续解析时就必须要用到前一次解析余下来的数据才能保证帧数据完整，所以在正常播放的情况下传入0即可。目前知道的需要传入kAudioFileStreamParseFlag_Discontinuity的情况有1个，在seek完毕之后显然seek后的数据和之前的数据完全无关
+    // 这里系统是异步解析
     OSStatus status = AudioFileStreamParseBytes(_audioFileStreamID, (UInt32)[data length], [data bytes], _discontinuous ? kAudioFileStreamParseFlag_Discontinuity : 0);
     [self errorForOSStatus:status error:error];
     
@@ -155,6 +159,7 @@
 
 - (void)calculateBitRate
 {
+    // 有些文件里无法解析出码率参数，所以只能在音频文件不断解析的过程中，不断继续调整码率
     if (_packetDuration && _processedPacketsCount > BitRateEstimationMinPackets
         && _processedPacketsCount <= BitRateEstimationMaxPackets)
     {
@@ -168,6 +173,8 @@
 {
     if (_fileSize > 0 && _bitRate > 0)
     {
+        // 音频文件播放总时长 = 音频文件有效数据部分大小（除去包头大小） / 码率
+        // 码率有可能不是一开始就能拿到的，音频文件也许没有携带这个信息，而是需要根据后续音频帧数量实时计算的，所以音频文件播放总时长也要不断计算调整
         _duration = ((_fileSize - _dataOffset) * 8.0) / _bitRate;
         NSLog(@"calculateDuration %@", @(_duration));
     }
@@ -177,6 +184,7 @@
 {
     if (_format.mSampleRate > 0)
     {
+        // 每个Packet播放时长 = 每个Packet的帧数量 / 音频采样率
         _packetDuration = _format.mFramesPerPacket / _format.mSampleRate;
         NSLog(@"calculatepPacketDuration %@ ms", @(_packetDuration * 1000));
     }
@@ -184,22 +192,24 @@
 
 - (void)handleAudioFileStreamProperty:(AudioFileStreamPropertyID)propertyID
 {
+    // 不同的音频文件，不是所有的 propertyID 都会返回，有些只是返回部分
     if (propertyID == kAudioFileStreamProperty_BitRate)
     {
         // 表示音频数据的码率，获取这个Property是为了计算音频的总时长Duration（因为AudioFileStream没有这样的接口)
-        UInt32 bitRate;
-        UInt32 bitRateSize = sizeof(bitRate);
-        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_BitRate, &bitRateSize, &bitRate);
+        UInt32 bitRateSize = sizeof(_bitRate);
+        OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_BitRate, &bitRateSize, &_bitRate);
         if (status != noErr)
         {
             //错误处理
         }
         
-        NSLog(@"kAudioFileStreamProperty_BitRate %@", @(bitRate));
+        NSLog(@"kAudioFileStreamProperty_BitRate %@", @(_bitRate));
+        [self calculateDuration];
     }
     else if (propertyID == kAudioFileStreamProperty_AudioDataByteCount)
     {
         // 音频文件中音频数据的总量。这个Property的作用一是用来计算音频的总时长，二是可以在seek时用来计算时间对应的字节offset。
+        // kAudioFileStreamProperty_AudioDataByteCount + kAudioFileStreamProperty_DataOffset = 音频文件总容量大小
         UInt64 audioDataByteCount;
         UInt32 byteCountSize = sizeof(audioDataByteCount);
         OSStatus status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_AudioDataByteCount, &byteCountSize, &audioDataByteCount);
@@ -245,17 +255,21 @@
     {
         // 表示音频数据在整个音频文件中的offset
         // 因为大多数音频文件都会有一个文件头之后才使真正的音频数据），这个值在seek时会发挥比较大的作用，音频的seek并不是直接seek文件位置而seek时间（比如seek到2分10秒的位置），seek时会根据时间计算出音频数据的字节offset然后需要再加上音频数据的offset才能得到在文件中的真正offset
-
+        // kAudioFileStreamProperty_AudioDataByteCount + kAudioFileStreamProperty_DataOffset = 音频文件总容量大小
         UInt32 offsetSize = sizeof(_dataOffset);
         AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_DataOffset, &offsetSize, &_dataOffset);
         _audioDataByteCount = _fileSize - _dataOffset;
         [self calculateDuration];
+        
+        NSLog(@"kAudioFileStreamProperty_DataOffset %@", @(_dataOffset));
     }
     else if (propertyID == kAudioFileStreamProperty_DataFormat)
     {
         // 表示音频文件结构信息，是一个AudioStreamBasicDescription的结构
         UInt32 asbdSize = sizeof(_format);
         AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_DataFormat, &asbdSize, &_format);
+        
+        NSLog(@"kAudioFileStreamProperty_DataFormat mSampleRate %@ mFramesPerPacket %@", @(_format.mSampleRate), @(_format.mFramesPerPacket));
         [self calculatepPacketDuration];
     }
     else if (propertyID == kAudioFileStreamProperty_MagicCookieData)
@@ -341,7 +355,7 @@
             status = AudioFileStreamGetProperty(_audioFileStreamID, kAudioFileStreamProperty_MaximumPacketSize, &sizeOfUInt32, &_maxPacketSize);
         }
         
-        NSLog(@"kAudioFileStreamProperty_ReadyToProducePackets");
+        NSLog(@"kAudioFileStreamProperty_ReadyToProducePackets %@", @(_maxPacketSize));
         
         if (_delegate && [_delegate respondsToSelector:@selector(audioFileStreamReadyToProducePackets:)])
         {
@@ -390,6 +404,7 @@
         packetDescriptioins = descriptions;
     }
     
+    // AudioStreamPacketDescription数组，存储了每一帧数据是从第几个字节开始的，这一帧总共多少字节
     NSMutableArray *parsedDataArray = [[NSMutableArray alloc] init];
     for (int i = 0; i < numberOfPackets; ++i)
     {
