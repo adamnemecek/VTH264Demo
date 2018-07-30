@@ -253,7 +253,7 @@
     }
     else if (propertyID == kAudioFileStreamProperty_DataOffset)
     {
-        // 表示音频数据在整个音频文件中的offset
+        // 表示音频数据在整个音频文件中的offset, 有可能为 0
         // 因为大多数音频文件都会有一个文件头之后才使真正的音频数据），这个值在seek时会发挥比较大的作用，音频的seek并不是直接seek文件位置而seek时间（比如seek到2分10秒的位置），seek时会根据时间计算出音频数据的字节offset然后需要再加上音频数据的offset才能得到在文件中的真正offset
         // kAudioFileStreamProperty_AudioDataByteCount + kAudioFileStreamProperty_DataOffset = 音频文件总容量大小
         UInt32 offsetSize = sizeof(_dataOffset);
@@ -274,6 +274,7 @@
     }
     else if (propertyID == kAudioFileStreamProperty_MagicCookieData)
     {
+        // magic cookie是附加在音频文件或者音频流中的一组不透明的元数据，而元数据给解码器提供了正确解码音频文件或音频流所必须的细节。我们可以通过Core Audio提供的相关函数读取或使用magic cookie。以下代码片段显示了如何获取和使用magic cookie。
         UInt32 cookieSize;
         Boolean writable;
         OSStatus status = AudioFileStreamGetPropertyInfo(_audioFileStreamID, kAudioFileStreamProperty_MagicCookieData, &cookieSize, &writable);
@@ -341,6 +342,8 @@
             }
             free(formatList);
         }
+        
+        NSLog(@"kAudioFileStreamProperty_FormatList mSampleRate %@ mFramesPerPacket %@", @(_format.mSampleRate), @(_format.mFramesPerPacket));
     }
     else if (propertyID == kAudioFileStreamProperty_ReadyToProducePackets)
     {
