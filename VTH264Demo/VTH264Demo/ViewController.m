@@ -52,6 +52,7 @@
 @property (nonatomic, strong) H264HwEncoder *h264Encoder;
 @property (nonatomic, strong) H264HwDecoder *h264Decoder;
 @property (nonatomic, assign) BOOL useasynDecode;
+@property (nonatomic, assign) BOOL timebaseSet;
 @property (nonatomic, assign) CFTimeInterval frame0time;
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AACEncoder *aacEncoder;
@@ -130,7 +131,7 @@
     //AAC转换为mp3文件路径
     self.mp3File = [documentsDirectory stringByAppendingPathComponent:MP3_FILE_NAME];
     
-    self.cameraDeviceIsFront = NO;
+    self.cameraDeviceIsFront = YES;
     [self initCamera:self.cameraDeviceIsFront];
     
     [self initAudio];
@@ -336,12 +337,12 @@
     }
     
     self.captureVideoFrameCount = 0;
-    self.frame0time = 0;
+    self.timebaseSet = 0;
 }
 
 - (void)switchBtnClick:(UIButton *)btn
 {
-    self.frame0time = 0;
+    self.timebaseSet = 0;
     if (self.captureSession.isRunning == YES)
     {
         NSLog(@"###############摄像头切换###############");
@@ -429,7 +430,9 @@
         [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
     }
     
+    self.timebaseSet = 0;
     self.frame0time = 0;
+    
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
         
         NaluUnit naluUnit;
@@ -838,6 +841,25 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [self.sampleBufferDisplayLayer removeFromSuperlayer];
 }
 
+- (CMSampleBufferRef)adjustTime:(CMSampleBufferRef)sample by:(CMTime)offset
+{
+    CMItemCount count;
+    CMSampleBufferGetSampleTimingInfoArray(sample, 0, nil, &count);
+    CMSampleTimingInfo *pInfo = malloc(sizeof(CMSampleTimingInfo) * count);
+    CMSampleBufferGetSampleTimingInfoArray(sample, count, pInfo, &count);
+    for (CMItemCount i = 0; i < count; i++)
+    {
+        pInfo[i].decodeTimeStamp = CMTimeSubtract(pInfo[i].decodeTimeStamp, offset);
+        pInfo[i].presentationTimeStamp = CMTimeSubtract(pInfo[i].presentationTimeStamp, offset);
+    }
+    
+    CMSampleBufferRef sout;
+    CMSampleBufferCreateCopyWithNewTiming(nil, sample, count, pInfo, &sout);
+    free(pInfo);
+    
+    return sout;
+}
+
 #pragma - mark - Use AVSampleBufferDisplayLayer
 //把pixelBuffer包装成samplebuffer送给displayLayer
 - (void)dispatchPixelBuffer:(CVPixelBufferRef)pixelBuffer
@@ -853,12 +875,14 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         //记录第一帧的时间戳，再根据fps调整后续每一帧的时间戳
         self.frame0time = CACurrentMediaTime();
     }
-    
+
     CMSampleTimingInfo timing = {
         .presentationTimeStamp = CMTimeMakeWithSeconds(self.frame0time + (1.0 / H264_FPS) * self.decodeVideoFrameCount, 1000),
-        .duration =  CMTimeMakeWithSeconds(1.0 / H264_FPS, 1000),
+        .duration = CMTimeMakeWithSeconds(1.0 / H264_FPS, 1000),
         .decodeTimeStamp = kCMTimeInvalid
     };
+    
+//    CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
     
     //获取视频信息
     CMVideoFormatDescriptionRef videoInfo = NULL;
@@ -885,13 +909,19 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     //kCMSampleAttachmentKey_DisplayImmediately 为 ture 就不考虑时间戳渲染
     CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanFalse);
 
-//    //设置每帧数据的显示时间pts, 不设置的话，每帧数据会以60fps的速度播放
-//    CMTimebaseRef controlTimebase;
-//    CMTimebaseCreateWithMasterClock(CFAllocatorGetDefault(), CMClockGetHostTimeClock(), &controlTimebase);
-//    CMTimebaseSetTime(controlTimebase, CMTimeMakeWithSeconds(CACurrentMediaTime(), H264_FPS));
-//    CMTimebaseSetRate(controlTimebase, 1.0);
-//    self.sampleBufferDisplayLayer.controlTimebase = controlTimebase;
-//
+    //设置每帧数据的显示时间pts, 不设置的话，每帧数据会以60fps的速度播放, controlTimebase只能设置一次
+    CMTime ptsInitial = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    double seconds = CMTimeGetSeconds(ptsInitial);
+    if (!self.timebaseSet && seconds != 0)
+    {
+        self.timebaseSet = YES;
+        CMTimebaseRef controlTimebase;
+        CMTimebaseCreateWithMasterClock(CFAllocatorGetDefault(), CMClockGetHostTimeClock(), &controlTimebase);
+        CMTimebaseSetTime(controlTimebase, CMTimeMake(seconds, 1));
+        CMTimebaseSetRate(controlTimebase, 1.0);
+        self.sampleBufferDisplayLayer.controlTimebase = controlTimebase;
+    }
+
 //    CMSampleBufferSetOutputPresentationTimeStamp(sampleBuffer, CMTimeMake(self.decodeVideoFrameCount, H264_FPS));
 
     [self enqueueSampleBuffer:sampleBuffer toLayer:self.sampleBufferDisplayLayer];
@@ -963,7 +993,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         CMTime pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
         CMTime dts = CMSampleBufferGetDecodeTimeStamp(sampleBuffer);
         CMTime duration = CMSampleBufferGetDuration(sampleBuffer);
-        
+
         self.captureAudioFrameCount++;
         NSLog(@"captureOutput captureAudioFrameCount %@, pts value %@, pts timescale %@, dts value %@, dts timescale %@, duration value %@, duration timescale %@des %@", @(self.captureAudioFrameCount), @(pts.value), @(pts.timescale), @(dts.value), @(dts.timescale), @(duration.value), @(duration.timescale), des);
         
