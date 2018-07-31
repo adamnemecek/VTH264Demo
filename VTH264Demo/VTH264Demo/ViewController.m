@@ -910,7 +910,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
     CFMutableDictionaryRef dict = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
     
-    //kCMSampleAttachmentKey_DisplayImmediately 为 ture 就不考虑时间戳渲染
+    //kCMSampleAttachmentKey_DisplayImmediately 为 ture 就不考虑时间戳渲染, 这里每帧都设置了时间戳，所以要关掉
     CFDictionarySetValue(dict, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanFalse);
 
     //设置每帧数据的显示时间pts, 不设置的话，每帧数据会以60fps的速度播放, controlTimebase只能设置一次
