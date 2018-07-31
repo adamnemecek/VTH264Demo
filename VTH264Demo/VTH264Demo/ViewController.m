@@ -408,6 +408,8 @@
         [self.displayBtn setTitle:@"OpenGL预览" forState:UIControlStateNormal];
         [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
     }
+    
+    self.decodeVideoFrameCount = 0;
 }
 
 - (void)fileDisplayBtnClick:(id)sender
@@ -432,6 +434,7 @@
     
     self.timebaseSet = 0;
     self.frame0time = 0;
+    self.decodeVideoFrameCount = 0;
     
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
         
@@ -874,6 +877,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     {
         //记录第一帧的时间戳，再根据fps调整后续每一帧的时间戳
         self.frame0time = CACurrentMediaTime();
+        NSLog(@"frame0time = %@", @(self.frame0time));
     }
 
     CMSampleTimingInfo timing = {
@@ -881,8 +885,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         .duration = CMTimeMakeWithSeconds(1.0 / H264_FPS, 1000),
         .decodeTimeStamp = kCMTimeInvalid
     };
-    
-//    CMSampleTimingInfo timing = {kCMTimeInvalid, kCMTimeInvalid, kCMTimeInvalid};
+
+    NSLog(@"frame %@ timing pts value %@ pts timescale %@, duration value %@ duration timescale %@", @(self.decodeVideoFrameCount), @(timing.presentationTimeStamp.value), @(timing.presentationTimeStamp.timescale), @(timing.duration.value), @(timing.duration.timescale));
     
     //获取视频信息
     CMVideoFormatDescriptionRef videoInfo = NULL;
@@ -914,6 +918,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     double seconds = CMTimeGetSeconds(ptsInitial);
     if (!self.timebaseSet && seconds != 0)
     {
+        NSLog(@"timebaseSet ptsInitial value %@ v timescale %@", @(ptsInitial.value), @(ptsInitial.timescale));
+        
         self.timebaseSet = YES;
         CMTimebaseRef controlTimebase;
         CMTimebaseCreateWithMasterClock(CFAllocatorGetDefault(), CMClockGetHostTimeClock(), &controlTimebase);
@@ -921,8 +927,6 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         CMTimebaseSetRate(controlTimebase, 1.0);
         self.sampleBufferDisplayLayer.controlTimebase = controlTimebase;
     }
-
-//    CMSampleBufferSetOutputPresentationTimeStamp(sampleBuffer, CMTimeMake(self.decodeVideoFrameCount, H264_FPS));
 
     [self enqueueSampleBuffer:sampleBuffer toLayer:self.sampleBufferDisplayLayer];
     CFRelease(sampleBuffer);
@@ -933,8 +937,16 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     if (sampleBuffer)
     {
         CFRetain(sampleBuffer);
-        [layer enqueueSampleBuffer:sampleBuffer];
+//        if ([layer isReadyForMoreMediaData])
+        {
+            [layer enqueueSampleBuffer:sampleBuffer];
+        }
+//        else
+//        {
+//            NSLog(@"Not Ready...");
+//        }
         CFRelease(sampleBuffer);
+        
         if (layer.status == AVQueuedSampleBufferRenderingStatusFailed)
         {
             NSLog(@"ERROR: %@", layer.error);
