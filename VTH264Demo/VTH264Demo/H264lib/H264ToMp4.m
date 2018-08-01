@@ -36,7 +36,7 @@ unsigned d = (darg);                    \
 
 @end
 
-const int32_t TIME_SCALE = 1000000000l;    // 1s = 1e10^9 ns
+const int32_t TIME_SCALE = 1000;
 const int32_t fps = H264_FPS;
 
 @implementation H264ToMp4
@@ -140,7 +140,7 @@ const int32_t fps = H264_FPS;
     [[NSFileManager defaultManager] removeItemAtPath:_dstFilePath error:nil];
     NSError *error = nil;
     NSURL *outputUrl = [NSURL fileURLWithPath:_dstFilePath];
-    _assetWriter = [[AVAssetWriter alloc] initWithURL:outputUrl fileType:AVFileTypeMPEG4 error:&error];
+    _assetWriter = [[AVAssetWriter alloc] initWithURL:outputUrl fileType:AVFileTypeQuickTimeMovie error:&error];
 
     const CFStringRef avcCKey = CFSTR("avcC");
     const CFDataRef avcCValue = [self avccExtradataCreate:sps PPS:pps];
@@ -162,7 +162,7 @@ const int32_t fps = H264_FPS;
     
     //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
     _videoWriteInput.expectsMediaDataInRealTime = YES;
-    _startTime = CMTimeMake(0, TIME_SCALE);
+    _startTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), TIME_SCALE);
     if ([_assetWriter startWriting])
     {
         [_assetWriter startSessionAtSourceTime:_startTime];
@@ -254,12 +254,12 @@ const int32_t fps = H264_FPS;
     
     const size_t sampleSizes[] = {[data length]};
     CMTime pts = [self timeWithFrame:_frameIndex];
-    
-    CMSampleTimingInfo timeInfoArray[1] = { {
-        .duration = CMTimeMake(0, 0),
+
+    CMSampleTimingInfo timeInfoArray[1] = {{
         .presentationTimeStamp = pts,
-        .decodeTimeStamp = CMTimeMake(0, 0),
-    } };
+        .duration = CMTimeMakeWithSeconds(1.0 / H264_FPS, TIME_SCALE),
+        .decodeTimeStamp = kCMTimeInvalid
+    }};
     
     result = CMSampleBufferCreate(kCFAllocatorDefault, blockBuffer, YES, NULL, NULL, formatDescription, 1, 1, timeInfoArray, 1, sampleSizes, &sampleBuffer);
     if (result != noErr)
@@ -307,12 +307,11 @@ const int32_t fps = H264_FPS;
 
 - (CMTime)timeWithFrame:(int)frameIndex
 {
-    int64_t pts = (frameIndex * (1000.0 / 40)) * (TIME_SCALE / 1000);
-    CMTime time = CMTimeMake(pts, TIME_SCALE);
+    CMTime pts = CMTimeMakeWithSeconds(CMTimeGetSeconds(_startTime) + (1.0 / H264_FPS) * _frameIndex, TIME_SCALE);
+
+    NSLog(@"timeWithFrame %@ timing pts value %@ pts timescale %@", @(frameIndex), @(pts.value), @(pts.timescale));
     
-    NSLog(@"frameIndex %@, pts %@", @(frameIndex), @(pts));
-    
-    return time;
+    return pts;
 }
 
 @end

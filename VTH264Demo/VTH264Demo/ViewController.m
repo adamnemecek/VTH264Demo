@@ -507,15 +507,17 @@
 - (void)playH264BtnClick:(id)sender
 {
     //AVPlayer 无法直接播放H264文件，需要解码
-    CGSize size = [UIScreen mainScreen].bounds.size;
-    self.avPlayerVC = [[AVPlayerViewController alloc] init];
-    self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.h264File]];
-    self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
-    self.avPlayerVC.showsPlaybackControls = YES;
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize srcFilePath:path dstFilePath:self.mp4File];
+    UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
+    view.center = self.view.center;
+    [view setHidesWhenStopped:YES];
+    [self.view addSubview:view];
     
-    [self presentViewController:self.avPlayerVC animated:YES completion:^{
+    [view startAnimating];
+    [_h264MP4 startWriteWithCompletionHandler:^{
         
-        [self.avPlayerVC.player play];
+        [view stopAnimating];
     }];
 }
 
@@ -804,7 +806,18 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [outputVideoDevice setSampleBufferDelegate:self queue:self.videoDataProcesQueue];
     
     self.captureSession = [[AVCaptureSession alloc] init];
+    if ([self.captureSession canAddInput:inputCameraDevice] == NO)
+    {
+        NSLog(@"Couldn't add video input");
+        return;
+    }
     [self.captureSession addInput:inputCameraDevice];
+    
+    if ([self.captureSession canAddOutput:outputVideoDevice] == NO)
+    {
+        NSLog(@"Couldn't add video output");
+        return;
+    }
     [self.captureSession addOutput:outputVideoDevice];
     [self.captureSession beginConfiguration];
     if (cameraDeviceIsFront == YES)
