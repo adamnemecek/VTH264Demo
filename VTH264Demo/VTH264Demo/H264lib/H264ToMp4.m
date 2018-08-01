@@ -164,7 +164,7 @@ const int32_t fps = H264_FPS;
         
         //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
         _videoWriteInput.expectsMediaDataInRealTime = YES;
-        _startTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), TIME_SCALE);
+        _startTime = CMTimeMakeWithSeconds(0, TIME_SCALE);
         if ([_assetWriter startWriting])
         {
             [_assetWriter startSessionAtSourceTime:_startTime];
@@ -297,7 +297,7 @@ const int32_t fps = H264_FPS;
     [_assetWriter endSessionAtSourceTime:time];
     [_assetWriter finishWritingWithCompletionHandler:^{
         
-        NSLog(@"finishWriting");
+        NSLog(@"finishWriting total frame %@ total play time %@", @(_frameIndex), @(_frameIndex * 1.0 / H264_FPS));
         dispatch_async(dispatch_get_main_queue(), ^{
             
             if (handler)
