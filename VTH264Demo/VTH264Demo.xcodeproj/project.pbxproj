@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		73296D4421087826001B207E /* AACDecoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 73296D4321087825001B207E /* AACDecoder.m */; };
 		73296D4721087C37001B207E /* AACHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 73296D4621087C37001B207E /* AACHelper.m */; };
 		734A2312210B1E0100D44129 /* AACAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2307210B1E0100D44129 /* AACAudioBuffer.m */; };
 		734A2313210B1E0100D44129 /* AACAudioFileStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2309210B1E0100D44129 /* AACAudioFileStream.m */; };
@@ -49,8 +48,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		73296D4221087825001B207E /* AACDecoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACDecoder.h; sourceTree = "<group>"; };
-		73296D4321087825001B207E /* AACDecoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACDecoder.m; sourceTree = "<group>"; };
 		73296D4521087C37001B207E /* AACHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AACHelper.h; sourceTree = "<group>"; };
 		73296D4621087C37001B207E /* AACHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AACHelper.m; sourceTree = "<group>"; };
 		734A2306210B1E0100D44129 /* AACParsedAudioData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACParsedAudioData.h; sourceTree = "<group>"; };
@@ -303,8 +300,6 @@
 			isa = PBXGroup;
 			children = (
 				734A2305210B1E0100D44129 /* AACAudioPlayer */,
-				73296D4221087825001B207E /* AACDecoder.h */,
-				73296D4321087825001B207E /* AACDecoder.m */,
 				73D60B962105A6B400A2B2B2 /* AACEncoder.h */,
 				73D60B972105A6B400A2B2B2 /* AACEncoder.m */,
 				73296D4521087C37001B207E /* AACHelper.h */,
@@ -400,7 +395,6 @@
 				73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */,
 				73C342F321001E910005BE62 /* GCDWebServerFileResponse.m in Sources */,
 				73C34302210088E20005BE62 /* H264ToMp4.m in Sources */,
-				73296D4421087826001B207E /* AACDecoder.m in Sources */,
 				734A2317210B1E0100D44129 /* AACAudioPlayer.m in Sources */,
 				73B55D7320FECA89008C3DE6 /* H264HwDecoder.m in Sources */,
 				734A2313210B1E0100D44129 /* AACAudioFileStream.m in Sources */,

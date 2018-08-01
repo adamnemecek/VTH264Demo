@@ -17,9 +17,12 @@
 #import "H264ToMp4.h"
 #import "GCDWebUploader.h"
 #import "AACEncoder.h"
-#import "AACDecoder.h"
 #import "AACHelper.h"
 #import "AACAudioPlayer.h"
+
+#define h264outputWidth     800
+#define h264outputHeight    600
+#define H264_FPS            24
 
 #define NOW                 (CACurrentMediaTime() * 1000)
 
@@ -32,7 +35,7 @@
 #define AAC_FILE_NAME       @"test.aac"
 #define MP3_FILE_NAME       @"test.mp3"
 
-@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, AACDecoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
+@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
 
 @property (nonatomic, assign) AudioComponentInstance componetInstance;
 @property (nonatomic, assign) AudioComponent component;
@@ -56,7 +59,6 @@
 @property (nonatomic, assign) CFTimeInterval frame0time;
 @property (nonatomic, strong) H264ToMp4 *h264MP4;
 @property (nonatomic, strong) AACEncoder *aacEncoder;
-@property (nonatomic, strong) AACDecoder *aacDecoder;
 @property (nonatomic, assign) UInt32 channelsPerFrame;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) AACAudioPlayer *aacPlayer;
@@ -137,7 +139,7 @@
     [self initAudio];
     
     self.h264Encoder = [H264HwEncoder alloc];
-    [self.h264Encoder initEncode:h264outputWidth height:h264outputHeight];
+    [self.h264Encoder initEncode:h264outputWidth height:h264outputHeight fps:H264_FPS];
     self.h264Encoder.delegate = self;
     self.h264Encoder.dataCallbackQueue = self.videoDataProcesQueue;
     
@@ -146,6 +148,7 @@
     self.h264Decoder.delegate = self;
     self.h264Decoder.dataCallbackQueue = self.videoDataProcesQueue;
     self.h264Decoder.enableAsynDecompression = self.useasynDecode;
+    [self.h264Decoder initEncode:h264outputWidth height:h264outputHeight];
     
     //按照双声道来编码
     self.channelsPerFrame = 2; // 1:单声道；2:双声道
@@ -153,10 +156,7 @@
     self.aacEncoder = [[AACEncoder alloc] init];
     self.aacEncoder.delegate = self;
     self.aacEncoder.channelsPerFrame = self.channelsPerFrame;
-    
-    self.aacDecoder = [[AACDecoder alloc] init];
-    self.aacDecoder.delegate = self;
-    
+
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
     CGFloat btnHeight = 40;
@@ -477,7 +477,12 @@
 
 - (void)toMp4BtnClick:(id)sender
 {
-    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize srcFilePath:self.h264File dstFilePath:self.mp4File];
+    // H264 -> MP4
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
+    
+    // H264 + AAC -> MP4
+//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File audioFilePath:self.aacFile dstFilePath:self.mp4File];
+    
     UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
     view.center = self.view.center;
     [view setHidesWhenStopped:YES];
@@ -508,7 +513,7 @@
 {
     //AVPlayer 无法直接播放H264文件，需要解码
     NSString *path = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
-    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize srcFilePath:path dstFilePath:self.mp4File];
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:path dstFilePath:self.mp4File fps:H264_FPS];
     UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
     view.center = self.view.center;
     [view setHidesWhenStopped:YES];

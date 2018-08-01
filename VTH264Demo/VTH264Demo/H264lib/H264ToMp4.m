@@ -26,28 +26,45 @@ unsigned d = (darg);                    \
     CMFormatDescriptionRef videoFormat;
 }
 
-@property (nonatomic, strong) NSString *srcFilePath;
+@property (nonatomic, strong) NSString *videoFilePath;
+@property (nonatomic, strong) NSString *audioFilePath;
 @property (nonatomic, strong) NSString *dstFilePath;
 @property (nonatomic, assign) CGSize videoSize;
 @property (nonatomic, strong) AVAssetWriter *assetWriter;
 @property (nonatomic, strong) AVAssetWriterInput *videoWriteInput;
+@property (nonatomic, strong) AVAssetWriterInput *audioWriteInput;
 @property (nonatomic, assign) CMTime startTime;
-@property (nonatomic, assign) int frameIndex;
+@property (nonatomic, assign) NSUInteger frameIndex;
+@property (nonatomic, assign) NSUInteger timeScale;
+@property (nonatomic, assign) NSUInteger videoFPS;
 
 @end
 
-const int32_t TIME_SCALE = 1000;
-const int32_t fps = H264_FPS;
-
 @implementation H264ToMp4
 
-- (instancetype)initWithVideoSize:(CGSize)videoSize srcFilePath:(NSString *)srcFilePath dstFilePath:(NSString *)dstFilePath
+- (instancetype)initWithVideoSize:(CGSize)videoSize videoFilePath:(NSString *)videoFilePath dstFilePath:(NSString *)dstFilePath fps:(NSUInteger)fps
 {
     if (self = [super init])
     {
         _videoSize = videoSize;
-        _srcFilePath = srcFilePath;
+        _videoFilePath = videoFilePath;
         _dstFilePath = dstFilePath;
+        _timeScale = 1000;
+        _videoFPS = fps;
+    }
+    
+    return self;
+}
+
+- (instancetype)initWithVideoSize:(CGSize)videoSize videoFilePath:(NSString *)videoFilePath audioFilePath:(NSString *)audioFilePath dstFilePath:(NSString *)dstFilePath
+{
+    if (self = [super init])
+    {
+        _videoSize = videoSize;
+        _videoFilePath = videoFilePath;
+        _audioFilePath = audioFilePath;
+        _dstFilePath = dstFilePath;
+        _timeScale = 1000;
     }
     
     return self;
@@ -55,9 +72,58 @@ const int32_t fps = H264_FPS;
 
 - (void)startWriteWithCompletionHandler:(void (^)(void))handler
 {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    if (_videoFilePath.length > 0)
+    {
+        [self startWriteVideoWithCompletionHandler:handler];
+    }
+    
+    if (_audioFilePath.length > 0)
+    {
+        [self startWriteAudioWithCompletionHandler:handler];
+    }
+}
+
+- (void)endWritingCompletionHandler:(void (^)(void))handler
+{
+    CMTime time = [self timeWithFrame:_frameIndex];
+    
+    [_videoWriteInput markAsFinished];
+    [_audioWriteInput markAsFinished];
+    
+    if (!_assetWriter)
+    {
+        dispatch_async(dispatch_get_main_queue(), ^{
             
-        NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.srcFilePath];
+            if (handler)
+            {
+                handler();
+            }
+        });
+        
+        return;
+    }
+    
+    [_assetWriter endSessionAtSourceTime:time];
+    [_assetWriter finishWritingWithCompletionHandler:^{
+        
+        NSLog(@"finishWriting total frame %@ total play time %@", @(_frameIndex), @(_frameIndex * 1.0 / self.videoFPS));
+        dispatch_async(dispatch_get_main_queue(), ^{
+            
+            if (handler)
+            {
+                handler();
+            }
+        });
+    }];
+}
+
+#pragma - mark - H264 -> MP4
+
+- (void)startWriteVideoWithCompletionHandler:(void (^)(void))handler
+{
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.videoFilePath];
         NSData *allData = [fileHandle readDataToEndOfFile];
         if (allData.length == 0)
         {
@@ -102,7 +168,7 @@ const int32_t fps = H264_FPS;
                 
                 continue;
             }
-
+            
             if (sps == nil || pps == nil)
             {
                 continue;
@@ -164,7 +230,7 @@ const int32_t fps = H264_FPS;
         
         //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
         _videoWriteInput.expectsMediaDataInRealTime = YES;
-        _startTime = CMTimeMakeWithSeconds(0, TIME_SCALE);
+        _startTime = CMTimeMakeWithSeconds(0, (int32_t)self.timeScale);
         if ([_assetWriter startWriting])
         {
             [_assetWriter startSessionAtSourceTime:_startTime];
@@ -260,7 +326,7 @@ const int32_t fps = H264_FPS;
 
     CMSampleTimingInfo timeInfoArray[1] = {{
         .presentationTimeStamp = pts,
-        .duration = CMTimeMakeWithSeconds(1.0 / H264_FPS, TIME_SCALE),
+        .duration = CMTimeMakeWithSeconds(1.0 / self.videoFPS, (int32_t)self.timeScale),
         .decodeTimeStamp = kCMTimeInvalid
     }};
     
@@ -276,45 +342,94 @@ const int32_t fps = H264_FPS;
     return sampleBuffer;
 }
 
-- (void)endWritingCompletionHandler:(void (^)(void))handler
+- (CMTime)timeWithFrame:(NSUInteger)frameIndex
 {
-    CMTime time = [self timeWithFrame:_frameIndex];
-    [_videoWriteInput markAsFinished];
-    
-    if (!_assetWriter)
-    {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            
-            if (handler)
-            {
-                handler();
-            }
-        });
-        
-        return;
-    }
-    
-    [_assetWriter endSessionAtSourceTime:time];
-    [_assetWriter finishWritingWithCompletionHandler:^{
-        
-        NSLog(@"finishWriting total frame %@ total play time %@", @(_frameIndex), @(_frameIndex * 1.0 / H264_FPS));
-        dispatch_async(dispatch_get_main_queue(), ^{
-            
-            if (handler)
-            {
-                handler();
-            }
-        });        
-    }];
-}
-
-- (CMTime)timeWithFrame:(int)frameIndex
-{
-    CMTime pts = CMTimeMakeWithSeconds(CMTimeGetSeconds(_startTime) + (1.0 / H264_FPS) * _frameIndex, TIME_SCALE);
+    CMTime pts = CMTimeMakeWithSeconds(CMTimeGetSeconds(_startTime) + (1.0 / self.videoFPS) * _frameIndex, (int32_t)self.timeScale);
 
     NSLog(@"timeWithFrame %@ timing pts value %@ pts timescale %@", @(frameIndex), @(pts.value), @(pts.timescale));
     
     return pts;
+}
+
+#pragma - mark - AAC -> MP4
+
+- (void)startWriteAudioWithCompletionHandler:(void (^)(void))handler
+{
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.videoFilePath];
+        NSData *allData = [fileHandle readDataToEndOfFile];
+        if (allData.length == 0)
+        {
+            NSLog(@"找不到mp4文件");
+            dispatch_async(dispatch_get_main_queue(), ^{
+                
+                if (handler)
+                {
+                    handler();
+                }
+            });
+            return;
+        }
+        
+        NaluUnit naluUnit;
+        NSData *sps = nil;
+        NSData *pps = nil;
+        int frame_size = 0;
+        NSUInteger curPos = 0;
+        NSUInteger frameIndex = 0;
+        
+        while ([NaluHelper readOneNaluFromAnnexBFormatH264:&naluUnit data:allData curPos:&curPos])
+        {
+            frameIndex++;
+            NSLog(@"naluUnit.type :%d, frameIndex:%@", naluUnit.type, @(frameIndex));
+            
+            if (naluUnit.type == NAL_SPS || naluUnit.type == NAL_PPS || naluUnit.type == NAL_SEI)
+            {
+                if (naluUnit.type == NAL_SPS)
+                {
+                    sps = [NSData dataWithBytes:naluUnit.data length:naluUnit.size];
+                }
+                else if (naluUnit.type == NAL_PPS)
+                {
+                    pps = [NSData dataWithBytes:naluUnit.data length:naluUnit.size];
+                }
+                
+                if (sps && pps)
+                {
+                    [self setupWithSPS:sps PPS:pps];
+                }
+                
+                continue;
+            }
+            
+            if (sps == nil || pps == nil)
+            {
+                continue;
+            }
+            
+            //获取NALUS的长度，开辟内存
+            frame_size += naluUnit.size;
+            BOOL isIFrame = NO;
+            if (naluUnit.type == NAL_SLICE_IDR)
+            {
+                isIFrame = YES;
+            }
+            
+            frame_size = naluUnit.size + 4;
+            uint8_t *frame_data = (uint8_t *)calloc(1, naluUnit.size + 4);//avcc header 占用4个字节
+            uint32_t littleLength = CFSwapInt32HostToBig(naluUnit.size);
+            uint8_t *lengthAddress = (uint8_t *)&littleLength;
+            memcpy(frame_data, lengthAddress, 4);
+            memcpy(frame_data + 4, naluUnit.data, naluUnit.size);
+            
+            NSLog(@"frame_data:%d, %d, %d, %d", *frame_data, *(frame_data + 1), *(frame_data + 3), *(frame_data + 3));
+            [self pushH264Data:frame_data length:frame_size isIFrame:isIFrame timeOffset:0];
+            free(frame_data);
+        }
+        
+        [self endWritingCompletionHandler:handler];
+    });
 }
 
 @end

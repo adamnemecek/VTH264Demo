@@ -22,6 +22,7 @@
 @property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
 @property (nonatomic, assign) BOOL enableAsynDecompression;
 
+- (void)initEncode:(int)width height:(int)height;
 - (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize;
 - (void)endDecoder;
 - (BOOL)resetH264Decoder;

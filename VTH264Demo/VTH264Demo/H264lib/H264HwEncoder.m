@@ -17,13 +17,15 @@
 @property (nonatomic, assign) NSUInteger frameCount;
 @property (nonatomic, strong) NSData *sps;
 @property (nonatomic, strong) NSData *pps;
+@property (nonatomic, assign) NSUInteger videoFPS;
 
 @end
 
 @implementation H264HwEncoder
 
-- (void)initEncode:(int)width height:(int)height
+- (void)initEncode:(int)width height:(int)height fps:(int)fps
 {
+    self.videoFPS = fps;
     OSStatus status = VTCompressionSessionCreate(NULL, width, height, kCMVideoCodecType_H264, NULL, NULL, NULL, didCompressH264, (__bridge void *)(self), &encodingSession);
     if (status != 0)
     {
@@ -60,8 +62,8 @@
     CVImageBufferRef imageBuffer = (CVImageBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
     
     //fps 24 一秒24帧足够
-    CMTime presentationTimeStamp = CMTimeMake(self.frameCount, H264_FPS);
-    CMTime duration = CMTimeMake(1, H264_FPS);
+    CMTime presentationTimeStamp = CMTimeMake(self.frameCount, (int32_t)self.videoFPS);
+    CMTime duration = CMTimeMake(1, (int32_t)self.videoFPS);
     
     //传递编码之前的视频采集时间戳
     NSNumber *timeNumber = @(timeStamp);

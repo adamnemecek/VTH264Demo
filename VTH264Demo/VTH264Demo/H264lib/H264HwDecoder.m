@@ -19,6 +19,8 @@
 @property (nonatomic, assign) NSInteger spsSize;
 @property (nonatomic, assign) uint8_t *pps;
 @property (nonatomic, assign) NSInteger ppsSize;
+@property (nonatomic, assign) int height;
+@property (nonatomic, assign) int width;
 
 @end
 
@@ -47,7 +49,7 @@
         //或者是kCVPixelFormatType_420YpCbCr8Planar
         //因为iOS是  nv12  其他是nv21
         //这里款高和编码反的
-        NSDictionary *destinationPixelBufferAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey : [NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange], (id)kCVPixelBufferWidthKey : [NSNumber numberWithInt:h264outputHeight], (id)kCVPixelBufferHeightKey : [NSNumber numberWithInt:h264outputWidth], (id)kCVPixelBufferOpenGLCompatibilityKey : [NSNumber numberWithBool:YES]};
+        NSDictionary *destinationPixelBufferAttributes = @{(id)kCVPixelBufferPixelFormatTypeKey : [NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange], (id)kCVPixelBufferWidthKey : [NSNumber numberWithInt:self.height], (id)kCVPixelBufferHeightKey : [NSNumber numberWithInt:self.width], (id)kCVPixelBufferOpenGLCompatibilityKey : [NSNumber numberWithBool:YES]};
 
         VTDecompressionOutputCallbackRecord callBackRecord;
         callBackRecord.decompressionOutputCallback = didDecompressH264;
@@ -118,6 +120,12 @@
     }
     
     return outputPixelBuffer;
+}
+
+- (void)initEncode:(int)width height:(int)height
+{
+    _width = width;
+    _height = height;
 }
 
 //此处解码的帧需要包含 00000001 start code

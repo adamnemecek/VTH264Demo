@@ -11,7 +11,8 @@
 
 @interface H264ToMp4 : NSObject
 
-- (instancetype)initWithVideoSize:(CGSize)videoSize srcFilePath:(NSString *)srcFilePath dstFilePath:(NSString *)dstFilePath;
+- (instancetype)initWithVideoSize:(CGSize)videoSize videoFilePath:(NSString *)videoFilePath dstFilePath:(NSString *)dstFilePath fps:(NSUInteger)fps;
+- (instancetype)initWithVideoSize:(CGSize)videoSize videoFilePath:(NSString *)videoFilePath audioFilePath:(NSString *)audioFilePath dstFilePath:(NSString *)dstFilePath;
 - (void)startWriteWithCompletionHandler:(void (^)(void))handler;
 - (void)endWritingCompletionHandler:(void (^)(void))handler;
 

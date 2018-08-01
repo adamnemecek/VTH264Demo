@@ -19,7 +19,7 @@
 
 @interface H264HwEncoder : NSObject
 
-- (void)initEncode:(int)width height:(int)height;
+- (void)initEncode:(int)width height:(int)height fps:(int)fps;
 - (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp;
 - (void)endEncode;
 
