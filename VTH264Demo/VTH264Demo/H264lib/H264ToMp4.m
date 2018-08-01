@@ -134,44 +134,47 @@ const int32_t fps = H264_FPS;
 
 - (void)setupWithSPS:(NSData *)sps PPS:(NSData *)pps
 {
-    NSLog(@"H264ToMp4 setup start");
-    
-    unlink([_dstFilePath UTF8String]);//删除该文件,c语言用法
-    [[NSFileManager defaultManager] removeItemAtPath:_dstFilePath error:nil];
-    NSError *error = nil;
-    NSURL *outputUrl = [NSURL fileURLWithPath:_dstFilePath];
-    _assetWriter = [[AVAssetWriter alloc] initWithURL:outputUrl fileType:AVFileTypeQuickTimeMovie error:&error];
+    if (!_assetWriter)
+    {
+        NSLog(@"H264ToMp4 setup start");
+        
+        unlink([_dstFilePath UTF8String]);//删除该文件,c语言用法
+        [[NSFileManager defaultManager] removeItemAtPath:_dstFilePath error:nil];
+        NSError *error = nil;
+        NSURL *outputUrl = [NSURL fileURLWithPath:_dstFilePath];
+        _assetWriter = [[AVAssetWriter alloc] initWithURL:outputUrl fileType:AVFileTypeQuickTimeMovie error:&error];
 
-    const CFStringRef avcCKey = CFSTR("avcC");
-    const CFDataRef avcCValue = [self avccExtradataCreate:sps PPS:pps];
-    const void *atomDictKeys[] = {avcCKey};
-    const void *atomDictValues[] = {avcCValue};
-    CFDictionaryRef atomsDict = CFDictionaryCreate(kCFAllocatorDefault, atomDictKeys, atomDictValues, 1, nil, nil);
-    
-    const void *extensionDictKeys[] = {kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms};
-    const void *extensionDictValues[] = {atomsDict};
-    CFDictionaryRef extensionDict = CFDictionaryCreate(kCFAllocatorDefault, extensionDictKeys, extensionDictValues, 1, nil, nil);
-    
-    CMVideoFormatDescriptionCreate(kCFAllocatorDefault, kCMVideoCodecType_H264, self.videoSize.width, self.videoSize.height, extensionDict, &videoFormat);
-    _videoWriteInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:nil sourceFormatHint:videoFormat];
-    
-    if ([_assetWriter canAddInput:_videoWriteInput])
-    {
-        [_assetWriter addInput:_videoWriteInput];
+        const CFStringRef avcCKey = CFSTR("avcC");
+        const CFDataRef avcCValue = [self avccExtradataCreate:sps PPS:pps];
+        const void *atomDictKeys[] = {avcCKey};
+        const void *atomDictValues[] = {avcCValue};
+        CFDictionaryRef atomsDict = CFDictionaryCreate(kCFAllocatorDefault, atomDictKeys, atomDictValues, 1, nil, nil);
+        
+        const void *extensionDictKeys[] = {kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms};
+        const void *extensionDictValues[] = {atomsDict};
+        CFDictionaryRef extensionDict = CFDictionaryCreate(kCFAllocatorDefault, extensionDictKeys, extensionDictValues, 1, nil, nil);
+        
+        CMVideoFormatDescriptionCreate(kCFAllocatorDefault, kCMVideoCodecType_H264, self.videoSize.width, self.videoSize.height, extensionDict, &videoFormat);
+        _videoWriteInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:nil sourceFormatHint:videoFormat];
+        
+        if ([_assetWriter canAddInput:_videoWriteInput])
+        {
+            [_assetWriter addInput:_videoWriteInput];
+        }
+        
+        //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
+        _videoWriteInput.expectsMediaDataInRealTime = YES;
+        _startTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), TIME_SCALE);
+        if ([_assetWriter startWriting])
+        {
+            [_assetWriter startSessionAtSourceTime:_startTime];
+            NSLog(@"H264ToMp4 setup success");
+        }
+        else
+        {
+            NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
+        }
     }
-    
-    //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
-    _videoWriteInput.expectsMediaDataInRealTime = YES;
-    _startTime = CMTimeMakeWithSeconds(CACurrentMediaTime(), TIME_SCALE);
-    if ([_assetWriter startWriting])
-    {
-        [_assetWriter startSessionAtSourceTime:_startTime];
-        NSLog(@"H264ToMp4 setup success");
-    }
-    else
-    {
-        NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
-    };
 }
 
 - (CFDataRef)avccExtradataCreate:(NSData *)sps PPS:(NSData *)pps
