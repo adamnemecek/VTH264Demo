@@ -53,6 +53,7 @@ unsigned d = (darg);                    \
     {
         _videoSize = videoSize;
         _videoFilePath = videoFilePath;
+        _audioFilePath = nil;
         _dstFilePath = dstFilePath;
         _timeScale = 1000;
         _videoFPS = fps;
@@ -94,41 +95,101 @@ unsigned d = (darg);                    \
         _assetWriter.shouldOptimizeForNetworkUse = YES;
     }
     
-    //先获取aac中adts数据，用于创建音频输入
-    NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.audioFilePath];
-    NSData *allData = [fileHandle readDataToEndOfFile];
-    if (allData.length == 0)
+    if (self.audioFilePath.length > 0)
     {
-        NSLog(@"找不到aac文件");
-        return;
+        //先获取aac中adts数据，用于创建音频输入
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.audioFilePath];
+        NSData *allData = [fileHandle readDataToEndOfFile];
+        if (allData.length == 0)
+        {
+            NSLog(@"找不到aac文件");
+            return;
+        }
+        
+        AdtsUnit adtsUnit;
+        NSUInteger curPos = 0;
+        if ([AACHelper readOneAtdsFromFormatAAC:&adtsUnit data:allData curPos:&curPos])
+        {
+            [self initAudioInputChannels:adtsUnit.channel samples:adtsUnit.frequencyInHz];
+        }
+    }
+    else
+    {
+        self.audioProcessFinish = YES;
     }
     
-    AdtsUnit adtsUnit;
-    NSUInteger curPos = 0;
-    if ([AACHelper readOneAtdsFromFormatAAC:&adtsUnit data:allData curPos:&curPos])
-    {
-        [self initAudioInputChannels:adtsUnit.channel samples:adtsUnit.frequencyInHz];
-    }
+//    NSURL *url = [NSURL fileURLWithPath:self.audioFilePath];
+//    NSDictionary *inputOptions = [NSDictionary dictionaryWithObject:[NSNumber numberWithBool:YES] forKey:AVURLAssetPreferPreciseDurationAndTimingKey];
+//    AVURLAsset *inputAsset = [[AVURLAsset alloc] initWithURL:url options:inputOptions];
+//
+//    [inputAsset loadValuesAsynchronouslyForKeys:[NSArray arrayWithObject:@"tracks"] completionHandler: ^{
+//
+//        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+//
+//            NSError *error = nil;
+//            AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
+//            if (tracksStatus != AVKeyValueStatusLoaded)
+//            {
+//                return;
+//            }
+//
+//            AVAssetReader *assetReader = [AVAssetReader assetReaderWithAsset:inputAsset error:&error];
+//
+//            NSArray *audioTracks = [inputAsset tracksWithMediaType:AVMediaTypeAudio];
+//
+//            AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
+//
+//            AVAssetTrack *audioTrack = [audioTracks objectAtIndex:0];
+//            NSDictionary *audioOutputSetting = @{AVFormatIDKey: @(kAudioFormatMPEG4AAC)};
+//            readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:audioOutputSetting];
+//            readerAudioTrackOutput.alwaysCopiesSampleData = NO;
+//            [assetReader addOutput:readerAudioTrackOutput];
+//
+//            if ([assetReader startReading] == NO)
+//            {
+//                NSLog(@"Error reading from file at URL: %@", url);
+//                return;
+//            }
+//
+//            CMSampleBufferRef audioSampleBufferRef = [readerAudioTrackOutput copyNextSampleBuffer];
+////            if (audioSampleBufferRef)
+////            {
+//////                [self.audioEncodingTarget processAudioBuffer:audioSampleBufferRef];
+////                CFRelease(audioSampleBufferRef);
+////                return;
+////            }
+//
+//            _startTime = CMTimeMakeWithSeconds(0, (int32_t)self.timeScale);
+//            if ([_assetWriter startWriting])
+//            {
+//                [_assetWriter startSessionAtSourceTime:_startTime];
+//                NSLog(@"H264ToMp4 setup success");
+//            }
+//            else
+//            {
+//                NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
+//            }
+//
+//            if ([_audioWriteInput isReadyForMoreMediaData])
+//            {
+//                [_audioWriteInput appendSampleBuffer:audioSampleBufferRef];
+////                NSLog(@"append audio SampleBuffer frameIndex %@ success", @(decodeFrameCount));
+//            }
+//            else
+//            {
+//                NSLog(@"_sampleBuffer isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
+//            }
+//        });
+//    }];
 }
 
 - (void)startWriteWithCompletionHandler:(void (^)(void))handler
 {
     if (_videoFilePath.length > 0)
     {
-//        [self startWriteVideoWithCompletionHandler:handler];
-        self.videoProcessFinish = YES;
-        _startTime = CMTimeMakeWithSeconds(0, (int32_t)self.timeScale);
-        if ([_assetWriter startWriting])
-        {
-            [_assetWriter startSessionAtSourceTime:_startTime];
-            NSLog(@"H264ToMp4 setup success");
-        }
-        else
-        {
-            NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
-        }
+        [self startWriteVideoWithCompletionHandler:handler];
     }
-    
+
     if (_audioFilePath.length > 0)
     {
         [self startWriteAudioWithCompletionHandler:handler];
@@ -184,7 +245,7 @@ unsigned d = (darg);                    \
         NSData *allData = [fileHandle readDataToEndOfFile];
         if (allData.length == 0)
         {
-            NSLog(@"找不到mp4文件");
+            NSLog(@"找不到h264文件");
             dispatch_async(dispatch_get_main_queue(), ^{
                 
                 if (handler)
@@ -252,6 +313,7 @@ unsigned d = (darg);                    \
         }
         
         self.videoProcessFinish = YES;
+        [self.videoWriteInput markAsFinished];
         [self endWritingCompletionHandler:handler];
     });
 }
@@ -278,6 +340,10 @@ unsigned d = (darg);                    \
         if ([_assetWriter canAddInput:_videoWriteInput])
         {
             [_assetWriter addInput:_videoWriteInput];
+        }
+        else
+        {
+            NSLog(@"assetWriter cannot add videoWriteInput");
         }
         
         //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
@@ -461,7 +527,7 @@ unsigned d = (darg);                    \
             {
                 NSLog(@"CMSampleBufferCreate status %@", @(status));
             }
-
+        
             if ([_audioWriteInput isReadyForMoreMediaData])
             {
                 [_audioWriteInput appendSampleBuffer:sampleBuffer];
@@ -469,13 +535,14 @@ unsigned d = (darg);                    \
             }
             else
             {
-                NSLog(@"_sampleBuffer isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
+                NSLog(@"_audioWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
             }
-            
+
             CFRelease(sampleBuffer);
         }
         
         self.audioProcessFinish = YES;
+        [self.audioWriteInput markAsFinished];
         [self endWritingCompletionHandler:handler];
     });
 }
@@ -484,8 +551,16 @@ unsigned d = (darg);                    \
 {
     if (!_audioWriteInput)
     {
-        //音频的一些配置包括音频各种这里为AAC,音频通道、采样率和音频的比特率
-        NSDictionary *settings = [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt: kAudioFormatMPEG4AAC], AVFormatIDKey, [NSNumber numberWithInt: ch], AVNumberOfChannelsKey, [NSNumber numberWithFloat: rate], AVSampleRateKey, [NSNumber numberWithInt: 64000], AVEncoderBitRateKey, nil];
+        //音频的一些配置包括音频各种这里为AAC, 音频通道、采样率和音频的比特率
+        AudioChannelLayout acl;
+        memset(&acl, 0, sizeof(acl));
+        acl.mChannelLayoutTag = kAudioChannelLayoutTag_Mono;
+        if (ch == 2)
+        {
+            acl.mChannelLayoutTag = kAudioChannelLayoutTag_Stereo;
+        }
+        
+        NSDictionary *settings = [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt: kAudioFormatMPEG4AAC], AVFormatIDKey, [NSNumber numberWithInt: ch], AVNumberOfChannelsKey, [NSNumber numberWithFloat: rate], AVSampleRateKey, [NSNumber numberWithInt: 64000], AVEncoderBitRateKey, [ NSData dataWithBytes:&acl length: sizeof(acl)], AVChannelLayoutKey, nil];
         //初始化音频写入类
         _audioWriteInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeAudio outputSettings:settings];
 
@@ -495,6 +570,10 @@ unsigned d = (darg);                    \
         if ([_assetWriter canAddInput:_audioWriteInput])
         {
             [_assetWriter addInput:_audioWriteInput];
+        }
+        else
+        {
+            NSLog(@"assetWriter cannot add audioWriteInput");
         }
     }
 }

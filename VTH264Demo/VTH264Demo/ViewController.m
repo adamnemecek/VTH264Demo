@@ -478,13 +478,13 @@
 - (void)toMp4BtnClick:(id)sender
 {
     // H264 -> MP4
-//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
     
-    // H264 + AAC -> MP4
-    NSString *pathAAC = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"aac"];
-    NSString *pathH264 = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
-    
-    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:pathH264 audioFilePath:pathAAC dstFilePath:self.mp4File];
+//    // H264 + AAC -> MP4
+//    NSString *pathAAC = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"aac"];
+//    NSString *pathH264 = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
+//
+//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:pathH264 audioFilePath:pathAAC dstFilePath:self.mp4File];
     
     UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
     view.center = self.view.center;
@@ -514,7 +514,7 @@
 
 - (void)playH264BtnClick:(id)sender
 {
-    //AVPlayer 无法直接播放H264文件，需要解码
+    //AVPlayer 无法直接播放H264文件，需要转MP4
     NSString *path = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
     _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:path dstFilePath:self.mp4File fps:H264_FPS];
     UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
