@@ -10,14 +10,14 @@
 
 @implementation AACHelper
 
-+ (NSData *)adtsData:(NSInteger)channel dataLength:(NSInteger)dataLength
++ (NSData *)adtsData:(NSInteger)channel dataLength:(NSInteger)dataLength frequencyInHz:(NSInteger)frequencyInHz
 {
     int adtsLength = 7;
     char *packet = malloc(sizeof(char) * adtsLength);
     // Variables Recycled by addADTStoPacket
     int profile = 2;  //AAC LCd kMPEG4Object_AAC_LC
     //39=MediaCodecInfo.CodecProfileLevel.AACObjectELD;
-    NSInteger freqIdx = [self sampleRateIndex:44100];  //44.1KHz
+    NSInteger freqIdx = [self sampleToRateIndex:frequencyInHz];  //44.1KHz
     int chanCfg = (int)channel;  //MPEG-4 Audio Channel Configuration. 1 Channel front-center
     NSUInteger fullLength = adtsLength + dataLength;
     // fill in ADTS data
@@ -33,7 +33,56 @@
     return data;
 }
 
-+ (NSInteger)sampleRateIndex:(NSInteger)frequencyInHz
++ (BOOL)readOneAtdsFromFormatAAC:(AdtsUnit *)adts data:(NSData *)data curPos:(NSUInteger *)curPos
+{
+    NSUInteger i = *curPos;
+    NSUInteger size = data.length;
+    unsigned char *buf = (unsigned char *)[data bytes];
+
+    while (i + 7 < size)
+    {
+        if (buf[i] == 0xFF && buf[i + 1] == 0xF9)
+        {
+            (*adts).profile = ((buf[i + 2] >> 6) & 0x03) + 1;
+            (*adts).frequencyInHz = [self rateIndexToSample:((buf[i + 2] >> 2) & 0x0F)];
+            (*adts).channel = (buf[i + 3] >> 6) & 0x03;
+            
+            i = i + 7;
+            int pos = (int)i;
+            while (pos + 7 < size)
+            {
+                if (buf[pos] == 0xFF && buf[pos + 1] == 0xF9)
+                {
+                    break;
+                }
+                
+                pos++;
+            }
+            
+            if (pos + 7 == size)
+            {
+                (*adts).size = (int)(pos + 7 - i);
+            }
+            else
+            {
+                (*adts).size = (int)(pos - i);
+            }
+
+            (*adts).data = buf + i;
+            *curPos = pos;
+            
+            return TRUE;
+        }
+        else
+        {
+            i++;
+        }
+    }
+    
+    return FALSE;
+}
+
++ (NSInteger)sampleToRateIndex:(NSInteger)frequencyInHz
 {
     NSInteger sampleRateIndex = 0;
     switch (frequencyInHz)
@@ -82,6 +131,57 @@
     }
     
     return sampleRateIndex;
+}
+
++ (int)rateIndexToSample:(int)sampleRateIndex
+{
+    int sample = 0;
+    switch (sampleRateIndex)
+    {
+        case 0:
+            sample = 96000;
+            break;
+        case 1:
+            sample = 88200;
+            break;
+        case 2:
+            sample = 64000;
+            break;
+        case 3:
+            sample = 48000;
+            break;
+        case 4:
+            sample = 44100;
+            break;
+        case 5:
+            sample = 32000;
+            break;
+        case 6:
+            sample = 24000;
+            break;
+        case 7:
+            sample = 22050;
+            break;
+        case 8:
+            sample = 16000;
+            break;
+        case 9:
+            sample = 12000;
+            break;
+        case 10:
+            sample = 11025;
+            break;
+        case 11:
+            sample = 8000;
+            break;
+        case 12:
+            sample = 7350;
+            break;
+        default:
+            sample = 44100;
+    }
+    
+    return sample;
 }
 
 @end

@@ -300,7 +300,7 @@
     self.sampleBufferDisplayLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
     self.sampleBufferDisplayLayer.opaque = YES;
     
-    self.useAacPlayer = YES;
+    self.useAacPlayer = NO;
 }
 
 #pragma - mark - UI
@@ -478,10 +478,13 @@
 - (void)toMp4BtnClick:(id)sender
 {
     // H264 -> MP4
-    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
+//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
     
     // H264 + AAC -> MP4
-//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File audioFilePath:self.aacFile dstFilePath:self.mp4File];
+    NSString *pathAAC = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"aac"];
+    NSString *pathH264 = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
+    
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:pathH264 audioFilePath:pathAAC dstFilePath:self.mp4File];
     
     UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
     view.center = self.view.center;
@@ -565,9 +568,9 @@
         self.avPlayerVC.player = [AVPlayer playerWithURL:[NSURL fileURLWithPath:self.aacFile]];
         self.avPlayerVC.view.frame = CGRectMake(0, 0, size.width, size.height);
         self.avPlayerVC.showsPlaybackControls = YES;
-        
+
         [self presentViewController:self.avPlayerVC animated:YES completion:^{
-            
+
             [self.avPlayerVC.player play];
         }];
     }
@@ -1102,7 +1105,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     self.encodeAudioFrameCount++;
     NSLog(@"getEncodedAudioData data length %@, frameCount %@", @(data.length), @(self.encodeAudioFrameCount));
 
-    NSData *dataAdts = [AACHelper adtsData:self.channelsPerFrame dataLength:data.length];
+    NSData *dataAdts = [AACHelper adtsData:self.channelsPerFrame dataLength:data.length frequencyInHz:44100];
     NSMutableData *aacData = [[NSMutableData alloc] init];
     [aacData appendData:dataAdts];
     [aacData appendData:data];
