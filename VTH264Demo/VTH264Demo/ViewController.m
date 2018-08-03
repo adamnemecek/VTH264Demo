@@ -150,8 +150,8 @@
     self.h264Decoder.enableAsynDecompression = self.useasynDecode;
     [self.h264Decoder initEncode:h264outputWidth height:h264outputHeight];
     
-    //按照双声道来编码
-    self.channelsPerFrame = 2; // 1:单声道；2:双声道
+    //按照单声道来编码，双声道在pcm和aac转换期间会失败
+    self.channelsPerFrame = 1; // 1:单声道；2:双声道
     
     self.aacEncoder = [[AACEncoder alloc] init];
     self.aacEncoder.delegate = self;
@@ -447,9 +447,7 @@
             decodeFrameCount++;
             NSLog(@"naluUnit.type :%d, frameIndex:%@", naluUnit.type, @(decodeFrameCount));
             
-            const char bytes[] = "\x00\x00\x00\x01";
-            size_t length = (sizeof bytes) - 1;
-            NSData *ByteHeader = [NSData dataWithBytes:bytes length:length];
+            NSData *ByteHeader = [NaluHelper getH264Header];
             NSMutableData *h264Data = [[NSMutableData alloc] init];
             [h264Data appendData:ByteHeader];
             [h264Data appendData:[NSData dataWithBytes:naluUnit.data length:naluUnit.size]];
@@ -478,13 +476,13 @@
 - (void)toMp4BtnClick:(id)sender
 {
     // H264 -> MP4
-    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
+//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:self.h264File dstFilePath:self.mp4File fps:H264_FPS];
     
-//    // H264 + AAC -> MP4
-//    NSString *pathAAC = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"aac"];
-//    NSString *pathH264 = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
-//
-//    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:pathH264 audioFilePath:pathAAC dstFilePath:self.mp4File];
+    // H264 + AAC -> MP4
+    NSString *pathAAC = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"aac"];
+    NSString *pathH264 = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
+
+    _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:pathH264 audioFilePath:pathAAC dstFilePath:self.mp4File];
     
     UIActivityIndicatorView *view = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
     view.center = self.view.center;
@@ -611,7 +609,7 @@
     desc.mSampleRate = 44100;
     desc.mFormatID = kAudioFormatLinearPCM;
     desc.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagsNativeEndian | kAudioFormatFlagIsPacked;
-    desc.mChannelsPerFrame = 2;
+    desc.mChannelsPerFrame = self.channelsPerFrame;
     desc.mFramesPerPacket = 1;
     desc.mBitsPerChannel = 16;
     desc.mBytesPerFrame = desc.mBitsPerChannel / 8 * desc.mChannelsPerFrame;

@@ -16,6 +16,7 @@
 		734A2317210B1E0100D44129 /* AACAudioPlayer.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2311210B1E0100D44129 /* AACAudioPlayer.m */; };
 		736F67782111635B0027F52F /* test.h264 in Resources */ = {isa = PBXBuildFile; fileRef = 736F67772111635B0027F52F /* test.h264 */; };
 		736F67812111CD0D0027F52F /* test.aac in Resources */ = {isa = PBXBuildFile; fileRef = 736F67802111CD0D0027F52F /* test.aac */; };
+		736F678E21130B310027F52F /* AACDecoder.m in Sources */ = {isa = PBXBuildFile; fileRef = 736F678D21130B310027F52F /* AACDecoder.m */; };
 		7393C6EA210EA07700790620 /* MP3Sample.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7393C6E9210EA07700790620 /* MP3Sample.mp3 */; };
 		73B55D5620FEC8F4008C3DE6 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */; };
 		73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 73B55D5820FEC8F4008C3DE6 /* ViewController.m */; };
@@ -65,6 +66,8 @@
 		734A2311210B1E0100D44129 /* AACAudioPlayer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioPlayer.m; sourceTree = "<group>"; };
 		736F67772111635B0027F52F /* test.h264 */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.h264; sourceTree = "<group>"; };
 		736F67802111CD0D0027F52F /* test.aac */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.aac; sourceTree = "<group>"; };
+		736F678C21130B310027F52F /* AACDecoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACDecoder.h; sourceTree = "<group>"; };
+		736F678D21130B310027F52F /* AACDecoder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACDecoder.m; sourceTree = "<group>"; };
 		7393C6E9210EA07700790620 /* MP3Sample.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = MP3Sample.mp3; sourceTree = "<group>"; };
 		73B55D5120FEC8F3008C3DE6 /* VTH264Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VTH264Demo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		73B55D5420FEC8F4008C3DE6 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -305,6 +308,8 @@
 				734A2305210B1E0100D44129 /* AACAudioPlayer */,
 				73D60B962105A6B400A2B2B2 /* AACEncoder.h */,
 				73D60B972105A6B400A2B2B2 /* AACEncoder.m */,
+				736F678C21130B310027F52F /* AACDecoder.h */,
+				736F678D21130B310027F52F /* AACDecoder.m */,
 				73296D4521087C37001B207E /* AACHelper.h */,
 				73296D4621087C37001B207E /* AACHelper.m */,
 			);
@@ -387,6 +392,7 @@
 			files = (
 				73C342F121001E910005BE62 /* GCDWebServerConnection.m in Sources */,
 				73C342F621001E910005BE62 /* GCDWebServerURLEncodedFormRequest.m in Sources */,
+				736F678E21130B310027F52F /* AACDecoder.m in Sources */,
 				73C342F821001E910005BE62 /* GCDWebServerDataRequest.m in Sources */,
 				73C342F421001E910005BE62 /* GCDWebServerDataResponse.m in Sources */,
 				73D60B982105A6B400A2B2B2 /* AACEncoder.m in Sources */,

@@ -11,6 +11,7 @@
 #include <mach/mach_time.h>
 #import "NaluHelper.h"
 #import "AACHelper.h"
+#import "AACDecoder.h"
 
 #define AV_W8(p, v) *(p) = (v)
 
@@ -117,70 +118,6 @@ unsigned d = (darg);                    \
     {
         self.audioProcessFinish = YES;
     }
-    
-//    NSURL *url = [NSURL fileURLWithPath:self.audioFilePath];
-//    NSDictionary *inputOptions = [NSDictionary dictionaryWithObject:[NSNumber numberWithBool:YES] forKey:AVURLAssetPreferPreciseDurationAndTimingKey];
-//    AVURLAsset *inputAsset = [[AVURLAsset alloc] initWithURL:url options:inputOptions];
-//
-//    [inputAsset loadValuesAsynchronouslyForKeys:[NSArray arrayWithObject:@"tracks"] completionHandler: ^{
-//
-//        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-//
-//            NSError *error = nil;
-//            AVKeyValueStatus tracksStatus = [inputAsset statusOfValueForKey:@"tracks" error:&error];
-//            if (tracksStatus != AVKeyValueStatusLoaded)
-//            {
-//                return;
-//            }
-//
-//            AVAssetReader *assetReader = [AVAssetReader assetReaderWithAsset:inputAsset error:&error];
-//
-//            NSArray *audioTracks = [inputAsset tracksWithMediaType:AVMediaTypeAudio];
-//
-//            AVAssetReaderTrackOutput *readerAudioTrackOutput = nil;
-//
-//            AVAssetTrack *audioTrack = [audioTracks objectAtIndex:0];
-//            NSDictionary *audioOutputSetting = @{AVFormatIDKey: @(kAudioFormatMPEG4AAC)};
-//            readerAudioTrackOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTrack outputSettings:audioOutputSetting];
-//            readerAudioTrackOutput.alwaysCopiesSampleData = NO;
-//            [assetReader addOutput:readerAudioTrackOutput];
-//
-//            if ([assetReader startReading] == NO)
-//            {
-//                NSLog(@"Error reading from file at URL: %@", url);
-//                return;
-//            }
-//
-//            CMSampleBufferRef audioSampleBufferRef = [readerAudioTrackOutput copyNextSampleBuffer];
-////            if (audioSampleBufferRef)
-////            {
-//////                [self.audioEncodingTarget processAudioBuffer:audioSampleBufferRef];
-////                CFRelease(audioSampleBufferRef);
-////                return;
-////            }
-//
-//            _startTime = CMTimeMakeWithSeconds(0, (int32_t)self.timeScale);
-//            if ([_assetWriter startWriting])
-//            {
-//                [_assetWriter startSessionAtSourceTime:_startTime];
-//                NSLog(@"H264ToMp4 setup success");
-//            }
-//            else
-//            {
-//                NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
-//            }
-//
-//            if ([_audioWriteInput isReadyForMoreMediaData])
-//            {
-//                [_audioWriteInput appendSampleBuffer:audioSampleBufferRef];
-////                NSLog(@"append audio SampleBuffer frameIndex %@ success", @(decodeFrameCount));
-//            }
-//            else
-//            {
-//                NSLog(@"_sampleBuffer isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
-//            }
-//        });
-//    }];
 }
 
 - (void)startWriteWithCompletionHandler:(void (^)(void))handler
@@ -474,6 +411,8 @@ unsigned d = (darg);                    \
 
 - (void)startWriteAudioWithCompletionHandler:(void (^)(void))handler
 {
+    AACDecoder *decoder = [[AACDecoder alloc] init];
+    
     dispatch_async(self.dataProcesQueue, ^{
         
         NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.audioFilePath];
@@ -499,34 +438,8 @@ unsigned d = (darg);                    \
         {
             decodeFrameCount++;
             NSLog(@"aacdata frameIndex:%@", @(decodeFrameCount));
-            
-            AudioStreamBasicDescription audioFormat;
-            audioFormat.mSampleRate = adtsUnit.frequencyInHz;
-            audioFormat.mFormatID = kAudioFormatMPEG4AAC;
-            audioFormat.mFormatFlags = adtsUnit.profile;
-            audioFormat.mBytesPerPacket = 0;
-            audioFormat.mFramesPerPacket = 1024;
-            audioFormat.mBytesPerFrame = 0;
-            audioFormat.mChannelsPerFrame = adtsUnit.channel;
-            audioFormat.mBitsPerChannel = 0;
-            audioFormat.mReserved = 0;
-            
-            CMFormatDescriptionRef format = NULL;
-            OSStatus status = CMAudioFormatDescriptionCreate(kCFAllocatorDefault, &audioFormat, 0, nil, 0, nil, nil, &format);
-            
-            CMBlockBufferRef frameBuffer;
-            status = CMBlockBufferCreateWithMemoryBlock(NULL, (void *)adtsUnit.data, adtsUnit.size, kCFAllocatorNull, NULL, 0, adtsUnit.size, 0, &frameBuffer);
-            
-            CMSampleTimingInfo timing = {CMTimeMake(1, adtsUnit.frequencyInHz), kCMTimeZero, kCMTimeInvalid};
-            
-            CMSampleBufferRef sampleBuffer = NULL;
-            const size_t sampleSizes[] = {adtsUnit.size};
-            
-            status = CMSampleBufferCreate(kCFAllocatorDefault, frameBuffer, false, NULL, NULL, format, 1, 1, &timing, 0, sampleSizes, &sampleBuffer);
-            if (status)
-            {
-                NSLog(@"CMSampleBufferCreate status %@", @(status));
-            }
+
+            CMSampleBufferRef sampleBuffer = [decoder startDecode:adtsUnit];
         
             if ([_audioWriteInput isReadyForMoreMediaData])
             {
