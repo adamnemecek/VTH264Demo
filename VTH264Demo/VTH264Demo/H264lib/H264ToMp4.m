@@ -36,7 +36,9 @@ unsigned d = (darg);                    \
 @property (nonatomic, strong) AVAssetWriterInput *videoWriteInput;
 @property (nonatomic, strong) AVAssetWriterInput *audioWriteInput;
 @property (nonatomic, assign) NSUInteger videoFrameIndex;
+@property (nonatomic, assign) NSUInteger videoFrameAll;
 @property (nonatomic, assign) NSUInteger audioFrameIndex;
+@property (nonatomic, assign) NSUInteger audioFrameAll;
 @property (nonatomic, assign) BOOL videoProcessFinish;
 @property (nonatomic, assign) BOOL audioProcessFinish;
 @property (nonatomic, assign) CMTime startTime;
@@ -118,15 +120,68 @@ unsigned d = (darg);                    \
     {
         self.audioProcessFinish = YES;
     }
+    
+    if (self.videoFilePath.length > 0)
+    {
+        //先获取h264中sps, pps数据，用于创建视频输入
+        NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.videoFilePath];
+        NSData *allData = [fileHandle readDataToEndOfFile];
+        if (allData.length == 0)
+        {
+            NSLog(@"找不到h264文件");
+            return;
+        }
+        
+        NaluUnit naluUnit;
+        NSData *sps = nil;
+        NSData *pps = nil;
+        NSUInteger curPos = 0;
+
+        while ([NaluHelper readOneNaluFromAnnexBFormatH264:&naluUnit data:allData curPos:&curPos])
+        {
+            if (naluUnit.type == NAL_SPS || naluUnit.type == NAL_PPS || naluUnit.type == NAL_SEI)
+            {
+                if (naluUnit.type == NAL_SPS)
+                {
+                    sps = [NSData dataWithBytes:naluUnit.data length:naluUnit.size];
+                }
+                else if (naluUnit.type == NAL_PPS)
+                {
+                    pps = [NSData dataWithBytes:naluUnit.data length:naluUnit.size];
+                }
+                
+                if (sps && pps)
+                {
+                    [self initVideoInputWithSPS:sps PPS:pps];
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+        self.videoProcessFinish = YES;
+    }
 }
 
 - (void)startWriteWithCompletionHandler:(void (^)(void))handler
-{
+{    
+    _startTime = CMTimeMakeWithSeconds(0, (int32_t)self.timeScale);
+    if ([_assetWriter startWriting])
+    {
+        [_assetWriter startSessionAtSourceTime:_startTime];
+        NSLog(@"startWritinge success");
+    }
+    else
+    {
+        NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
+    }
+    
     if (_videoFilePath.length > 0)
     {
         [self startWriteVideoWithCompletionHandler:handler];
     }
-
+    
     if (_audioFilePath.length > 0)
     {
         [self startWriteAudioWithCompletionHandler:handler];
@@ -176,7 +231,7 @@ unsigned d = (darg);                    \
 
 - (void)startWriteVideoWithCompletionHandler:(void (^)(void))handler
 {
-    dispatch_async(self.dataProcesQueue, ^{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
         
         NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.videoFilePath];
         NSData *allData = [fileHandle readDataToEndOfFile];
@@ -198,12 +253,12 @@ unsigned d = (darg);                    \
         NSData *pps = nil;
         int frame_size = 0;
         NSUInteger curPos = 0;
-        NSUInteger frameIndex = 0;
+        NSUInteger decodeFrameCount = 0;
+        self.videoFrameIndex = 0;
         
         while ([NaluHelper readOneNaluFromAnnexBFormatH264:&naluUnit data:allData curPos:&curPos])
         {
-            frameIndex++;
-            NSLog(@"naluUnit.type :%d, frameIndex:%@", naluUnit.type, @(frameIndex));
+            NSLog(@"naluUnit.type :%d, frameIndex:%@", naluUnit.type, @(decodeFrameCount));
             
             if (naluUnit.type == NAL_SPS || naluUnit.type == NAL_PPS || naluUnit.type == NAL_SEI)
             {
@@ -229,6 +284,8 @@ unsigned d = (darg);                    \
                 continue;
             }
             
+            decodeFrameCount++;
+            
             //获取NALUS的长度，开辟内存
             frame_size += naluUnit.size;
             BOOL isIFrame = NO;
@@ -243,15 +300,43 @@ unsigned d = (darg);                    \
             uint8_t *lengthAddress = (uint8_t *)&littleLength;
             memcpy(frame_data, lengthAddress, 4);
             memcpy(frame_data + 4, naluUnit.data, naluUnit.size);
+
+            if (_assetWriter.status == AVAssetWriterStatusUnknown)
+            {
+                NSLog(@"_assetWriter status not ready");
+                return;
+            }
             
-            NSLog(@"frame_data:%d, %d, %d, %d", *frame_data, *(frame_data + 1), *(frame_data + 3), *(frame_data + 3));
-            [self pushH264Data:frame_data length:frame_size isIFrame:isIFrame timeOffset:0];
+            NSData *h264Data = [NSData dataWithBytes:frame_data length:frame_size];
+            CMSampleBufferRef h264Sample = [self sampleBufferWithData:h264Data formatDescriptor:videoFormat];
+            
+            dispatch_async(self.dataProcesQueue, ^{
+                
+                self.videoFrameIndex++;
+
+                if ([_videoWriteInput isReadyForMoreMediaData])
+                {
+                    [_videoWriteInput appendSampleBuffer:h264Sample];
+                    NSLog(@"append video SampleBuffer frameIndex %@ success", @(_videoFrameIndex));
+                }
+                else
+                {
+                    NSLog(@"_videoWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
+                }
+                
+                CFRelease(h264Sample);
+                
+                if (self.videoFrameIndex == self.videoFrameAll)
+                {
+                    self.videoProcessFinish = YES;
+                    [self endWritingCompletionHandler:handler];
+                }
+            });
+            
             free(frame_data);
         }
         
-        self.videoProcessFinish = YES;
-        [self.videoWriteInput markAsFinished];
-        [self endWritingCompletionHandler:handler];
+        self.videoFrameAll = decodeFrameCount;
     });
 }
 
@@ -285,17 +370,6 @@ unsigned d = (darg);                    \
         
         //expectsMediaDataInRealTime = true 必须设为 true，否则，视频会丢帧
         _videoWriteInput.expectsMediaDataInRealTime = YES;
-        
-        _startTime = CMTimeMakeWithSeconds(0, (int32_t)self.timeScale);
-        if ([_assetWriter startWriting])
-        {
-            [_assetWriter startSessionAtSourceTime:_startTime];
-            NSLog(@"H264ToMp4 setup success");
-        }
-        else
-        {
-            NSLog(@"[Error] startWritinge error:%@", _assetWriter.error);
-        }
     }
 }
 
@@ -338,30 +412,7 @@ unsigned d = (darg);                    \
     return data;
 }
 
-- (void)pushH264Data:(unsigned char *)dataBuffer length:(uint32_t)len isIFrame:(BOOL)isIFrame timeOffset:(int64_t)timestamp
-{
-    if (_assetWriter.status == AVAssetWriterStatusUnknown)
-    {
-        NSLog(@"_assetWriter status not ready");
-        return;
-    }
-    
-    NSData *h264Data = [NSData dataWithBytes:dataBuffer length:len];
-    CMSampleBufferRef h264Sample = [self sampleBufferWithData:h264Data formatDescriptor:videoFormat];
-    if ([_videoWriteInput isReadyForMoreMediaData])
-    {
-        [_videoWriteInput appendSampleBuffer:h264Sample];
-        NSLog(@"append video SampleBuffer frameIndex %@ success", @(_videoFrameIndex));
-    }
-    else
-    {
-        NSLog(@"_videoWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
-    }
-    
-    CFRelease(h264Sample);
-}
-
-- (CMSampleBufferRef)sampleBufferWithData:(NSData*)data formatDescriptor:(CMFormatDescriptionRef)formatDescription
+- (CMSampleBufferRef)sampleBufferWithData:(NSData *)data formatDescriptor:(CMFormatDescriptionRef)formatDescription
 {
     OSStatus result;
     
@@ -393,8 +444,6 @@ unsigned d = (darg);                    \
         return NULL;
     }
 
-    _videoFrameIndex++;
-    
     return sampleBuffer;
 }
 
@@ -413,7 +462,7 @@ unsigned d = (darg);                    \
 {
     AACDecoder *decoder = [[AACDecoder alloc] init];
     
-    dispatch_async(self.dataProcesQueue, ^{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
         
         NSFileHandle *fileHandle = [NSFileHandle fileHandleForReadingAtPath:self.audioFilePath];
         NSData *allData = [fileHandle readDataToEndOfFile];
@@ -433,6 +482,7 @@ unsigned d = (darg);                    \
         AdtsUnit adtsUnit;
         NSUInteger curPos = 0;
         NSUInteger decodeFrameCount = 0;
+        self.audioFrameIndex = 0;
         
         while ([AACHelper readOneAtdsFromFormatAAC:&adtsUnit data:allData curPos:&curPos])
         {
@@ -440,23 +490,32 @@ unsigned d = (darg);                    \
             NSLog(@"aacdata frameIndex:%@", @(decodeFrameCount));
 
             CMSampleBufferRef sampleBuffer = [decoder startDecode:adtsUnit];
-        
-            if ([_audioWriteInput isReadyForMoreMediaData])
-            {
-                [_audioWriteInput appendSampleBuffer:sampleBuffer];
-                NSLog(@"append audio SampleBuffer frameIndex %@ success", @(decodeFrameCount));
-            }
-            else
-            {
-                NSLog(@"_audioWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
-            }
-
-            CFRelease(sampleBuffer);
+            
+            dispatch_async(self.dataProcesQueue, ^{
+                
+                self.audioFrameIndex++;
+                
+                if ([_audioWriteInput isReadyForMoreMediaData])
+                {
+                    [_audioWriteInput appendSampleBuffer:sampleBuffer];
+                    NSLog(@"append audio SampleBuffer frameIndex %@ success", @(self.audioFrameIndex));
+                }
+                else
+                {
+                    NSLog(@"_audioWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
+                }
+                
+                CFRelease(sampleBuffer);
+                
+                if (self.audioFrameIndex == self.audioFrameAll)
+                {
+                    self.audioProcessFinish = YES;
+                    [self endWritingCompletionHandler:handler];
+                }
+            });
         }
         
-        self.audioProcessFinish = YES;
-        [self.audioWriteInput markAsFinished];
-        [self endWritingCompletionHandler:handler];
+        self.audioFrameAll = decodeFrameCount;
     });
 }
 
