@@ -480,7 +480,7 @@
     
     // H264 + AAC -> MP4
     NSString *pathAAC = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"aac"];
-    NSString *pathH264 = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
+    NSString *pathH264 = nil;//[[NSBundle mainBundle] pathForResource:@"test" ofType:@"h264"];
 
     _h264MP4 = [[H264ToMp4 alloc] initWithVideoSize:self.fileSize videoFilePath:pathH264 audioFilePath:pathAAC dstFilePath:self.mp4File];
     

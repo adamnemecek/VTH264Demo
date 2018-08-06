@@ -100,7 +100,7 @@ typedef struct _passthroughUserData
     return &audioDesc;
 }
 
-- (CMSampleBufferRef)startDecode:(AdtsUnit)adtsUnit
+- (CMSampleBufferRef)startDecode:(AdtsUnit)adtsUnit timing:(CMSampleTimingInfo)timing
 {
     if (!_audioConverter)
     {
@@ -134,7 +134,7 @@ typedef struct _passthroughUserData
         OSStatus rv = AudioConverterFillComplexBuffer(_audioConverter, inputInDataProc, &userData, &numFrames, &decBuffer, &outPacketDescription);
         if (rv && rv != noErr)
         {
-            NSLog(@"Error decoding audio stream: %d\n", rv);
+            NSLog(@"Error decoding audio stream: %@\n", @(rv));
             break;
         }
         
@@ -167,9 +167,7 @@ typedef struct _passthroughUserData
     
     CMBlockBufferRef frameBuffer;
     status = CMBlockBufferCreateWithMemoryBlock(NULL, (void *)[decodedData bytes], decodedData.length, kCFAllocatorNull, NULL, 0, decodedData.length, 0, &frameBuffer);
-    
-    CMSampleTimingInfo timing = {CMTimeMake(1, audioFormat.mSampleRate), kCMTimeZero, kCMTimeInvalid};
-    
+
     CMSampleBufferRef sampleBuffer = NULL;
     const size_t sampleSizes[] = {decodedData.length};
     

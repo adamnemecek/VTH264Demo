@@ -75,7 +75,7 @@ unsigned d = (darg);                    \
         _audioFilePath = audioFilePath;
         _dstFilePath = dstFilePath;
         _timeScale = 1000;
-        _videoFPS = 24;
+        _videoFPS = 40;
         [self initAssetWriter];
     }
     
@@ -195,7 +195,15 @@ unsigned d = (darg);                    \
         return;
     }
     
-    CMTime time = [self timeWithFrame:_videoFrameIndex];
+    CMTime time;
+    if (_audioFilePath.length > 0)
+    {
+        time = [self timeWithAudioFrame:_audioFrameIndex];
+    }
+    else
+    {
+        time = [self timeWithVideoFrame:_videoFrameIndex];
+    }
     
     [_videoWriteInput markAsFinished];
     [_audioWriteInput markAsFinished];
@@ -216,7 +224,15 @@ unsigned d = (darg);                    \
     [_assetWriter endSessionAtSourceTime:time];
     [_assetWriter finishWritingWithCompletionHandler:^{
         
-        NSLog(@"finishWriting total frame %@ total play time %@", @(_videoFrameIndex), @(_videoFrameIndex * 1.0 / self.videoFPS));
+        if (_audioFilePath.length > 0)
+        {
+            NSLog(@"finishWriting total frame %@ total play time %@", @(_audioFrameIndex), @(_audioFrameIndex * 1.0 / self.videoFPS));
+        }
+        else
+        {
+            NSLog(@"finishWriting total frame %@ total play time %@", @(_videoFrameIndex), @(_videoFrameIndex * 1.0 / self.videoFPS));
+        }
+        
         dispatch_async(dispatch_get_main_queue(), ^{
             
             if (handler)
@@ -321,7 +337,7 @@ unsigned d = (darg);                    \
                 }
                 else
                 {
-                    NSLog(@"_videoWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
+                    NSLog(@"_videoWriteInput isReadyForMoreMediaData NO frameIndex %@ status:%ld", @(_videoFrameIndex), (long)_assetWriter.status);
                 }
                 
                 CFRelease(h264Sample);
@@ -429,7 +445,7 @@ unsigned d = (darg);                    \
     result = CMBlockBufferReplaceDataBytes([data bytes], blockBuffer, 0, [data length]);
     
     const size_t sampleSizes[] = {[data length]};
-    CMTime pts = [self timeWithFrame:_videoFrameIndex];
+    CMTime pts = [self timeWithVideoFrame:_videoFrameIndex];
 
     CMSampleTimingInfo timeInfoArray[1] = {{
         .presentationTimeStamp = pts,
@@ -447,11 +463,11 @@ unsigned d = (darg);                    \
     return sampleBuffer;
 }
 
-- (CMTime)timeWithFrame:(NSUInteger)frameIndex
+- (CMTime)timeWithVideoFrame:(NSUInteger)frameIndex
 {
-    CMTime pts = CMTimeMakeWithSeconds(CMTimeGetSeconds(_startTime) + (1.0 / self.videoFPS) * _videoFrameIndex, (int32_t)self.timeScale);
+    CMTime pts = CMTimeMakeWithSeconds(CMTimeGetSeconds(_startTime) + (1.0 / self.videoFPS) * frameIndex, (int32_t)self.timeScale);
 
-    NSLog(@"timeWithFrame %@ timing pts value %@ pts timescale %@", @(frameIndex), @(pts.value), @(pts.timescale));
+    NSLog(@"timeWithVideoFrame %@ timing pts value %@ pts timescale %@", @(frameIndex), @(pts.value), @(pts.timescale));
     
     return pts;
 }
@@ -489,7 +505,14 @@ unsigned d = (darg);                    \
             decodeFrameCount++;
             NSLog(@"aacdata frameIndex:%@", @(decodeFrameCount));
 
-            CMSampleBufferRef sampleBuffer = [decoder startDecode:adtsUnit];
+            CMTime pts = [self timeWithAudioFrame:decodeFrameCount];
+            CMSampleTimingInfo timing = {
+                .presentationTimeStamp = pts,
+                .duration = CMTimeMakeWithSeconds(1.0 / self.videoFPS, (int32_t)self.timeScale),
+                .decodeTimeStamp = kCMTimeInvalid
+            };
+            
+            CMSampleBufferRef sampleBuffer = [decoder startDecode:adtsUnit timing:timing];
             
             dispatch_async(self.dataProcesQueue, ^{
                 
@@ -502,7 +525,7 @@ unsigned d = (darg);                    \
                 }
                 else
                 {
-                    NSLog(@"_audioWriteInput isReadyForMoreMediaData NO status:%ld", (long)_assetWriter.status);
+                    NSLog(@"_audioWriteInput isReadyForMoreMediaData NO frameIndex %@ status:%ld", @(self.audioFrameIndex), (long)_assetWriter.status);
                 }
                 
                 CFRelease(sampleBuffer);
@@ -548,6 +571,15 @@ unsigned d = (darg);                    \
             NSLog(@"assetWriter cannot add audioWriteInput");
         }
     }
+}
+
+- (CMTime)timeWithAudioFrame:(NSUInteger)frameIndex
+{
+    CMTime pts = CMTimeMakeWithSeconds(CMTimeGetSeconds(_startTime) + (1.0 / self.videoFPS) * frameIndex, (int32_t)self.timeScale);
+    
+    NSLog(@"timeWithAudioFrame %@ timing pts value %@ pts timescale %@", @(frameIndex), @(pts.value), @(pts.timescale));
+    
+    return pts;
 }
 
 @end

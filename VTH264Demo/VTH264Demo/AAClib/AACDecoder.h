@@ -22,7 +22,7 @@
 @property (nonatomic, weak) id<AACDecoderDelegate> delegate;
 @property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
 
-- (CMSampleBufferRef)startDecode:(AdtsUnit)adtsUnit;
+- (CMSampleBufferRef)startDecode:(AdtsUnit)adtsUnit timing:(CMSampleTimingInfo)timing;
 - (void)endDecode;
 
 @end
