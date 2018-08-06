@@ -8,6 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		73296D4721087C37001B207E /* AACHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 73296D4621087C37001B207E /* AACHelper.m */; };
+		73492F282117F7740022A425 /* log.c in Sources */ = {isa = PBXBuildFile; fileRef = 73492F182117F7740022A425 /* log.c */; };
+		73492F292117F7740022A425 /* hashswf.c in Sources */ = {isa = PBXBuildFile; fileRef = 73492F1F2117F7740022A425 /* hashswf.c */; };
+		73492F2A2117F7740022A425 /* rtmp.c in Sources */ = {isa = PBXBuildFile; fileRef = 73492F202117F7740022A425 /* rtmp.c */; };
+		73492F2B2117F7740022A425 /* error.c in Sources */ = {isa = PBXBuildFile; fileRef = 73492F222117F7740022A425 /* error.c */; };
+		73492F2C2117F7740022A425 /* parseurl.c in Sources */ = {isa = PBXBuildFile; fileRef = 73492F252117F7740022A425 /* parseurl.c */; };
+		73492F2D2117F7740022A425 /* amf.c in Sources */ = {isa = PBXBuildFile; fileRef = 73492F262117F7740022A425 /* amf.c */; };
+		73492F302117F8C00022A425 /* RtmpSocket.m in Sources */ = {isa = PBXBuildFile; fileRef = 73492F2E2117F8C00022A425 /* RtmpSocket.m */; };
 		734A2312210B1E0100D44129 /* AACAudioBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2307210B1E0100D44129 /* AACAudioBuffer.m */; };
 		734A2313210B1E0100D44129 /* AACAudioFileStream.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A2309210B1E0100D44129 /* AACAudioFileStream.m */; };
 		734A2314210B1E0100D44129 /* AACParsedAudioData.m in Sources */ = {isa = PBXBuildFile; fileRef = 734A230D210B1E0100D44129 /* AACParsedAudioData.m */; };
@@ -52,6 +59,24 @@
 /* Begin PBXFileReference section */
 		73296D4521087C37001B207E /* AACHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AACHelper.h; sourceTree = "<group>"; };
 		73296D4621087C37001B207E /* AACHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AACHelper.m; sourceTree = "<group>"; };
+		73492F182117F7740022A425 /* log.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = log.c; sourceTree = "<group>"; };
+		73492F192117F7740022A425 /* error.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = error.h; sourceTree = "<group>"; };
+		73492F1A2117F7740022A425 /* http.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = http.h; sourceTree = "<group>"; };
+		73492F1B2117F7740022A425 /* handshake.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = handshake.h; sourceTree = "<group>"; };
+		73492F1C2117F7740022A425 /* dh.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dh.h; sourceTree = "<group>"; };
+		73492F1D2117F7740022A425 /* dhgroups.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = dhgroups.h; sourceTree = "<group>"; };
+		73492F1E2117F7740022A425 /* rtmp_sys.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rtmp_sys.h; sourceTree = "<group>"; };
+		73492F1F2117F7740022A425 /* hashswf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = hashswf.c; sourceTree = "<group>"; };
+		73492F202117F7740022A425 /* rtmp.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = rtmp.c; sourceTree = "<group>"; };
+		73492F212117F7740022A425 /* amf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = amf.h; sourceTree = "<group>"; };
+		73492F222117F7740022A425 /* error.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = error.c; sourceTree = "<group>"; };
+		73492F232117F7740022A425 /* log.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
+		73492F242117F7740022A425 /* bytes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bytes.h; sourceTree = "<group>"; };
+		73492F252117F7740022A425 /* parseurl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = parseurl.c; sourceTree = "<group>"; };
+		73492F262117F7740022A425 /* amf.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = amf.c; sourceTree = "<group>"; };
+		73492F272117F7740022A425 /* rtmp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = rtmp.h; sourceTree = "<group>"; };
+		73492F2E2117F8C00022A425 /* RtmpSocket.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RtmpSocket.m; sourceTree = "<group>"; };
+		73492F2F2117F8C00022A425 /* RtmpSocket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RtmpSocket.h; sourceTree = "<group>"; };
 		734A2306210B1E0100D44129 /* AACParsedAudioData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACParsedAudioData.h; sourceTree = "<group>"; };
 		734A2307210B1E0100D44129 /* AACAudioBuffer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = AACAudioBuffer.m; sourceTree = "<group>"; };
 		734A2308210B1E0100D44129 /* AACAudioOutputQueue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AACAudioOutputQueue.h; sourceTree = "<group>"; };
@@ -139,6 +164,39 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		73492F162117F7740022A425 /* RTMPLib */ = {
+			isa = PBXGroup;
+			children = (
+				73492F2F2117F8C00022A425 /* RtmpSocket.h */,
+				73492F2E2117F8C00022A425 /* RtmpSocket.m */,
+				73492F172117F7740022A425 /* pili-librtmp */,
+			);
+			path = RTMPLib;
+			sourceTree = "<group>";
+		};
+		73492F172117F7740022A425 /* pili-librtmp */ = {
+			isa = PBXGroup;
+			children = (
+				73492F182117F7740022A425 /* log.c */,
+				73492F192117F7740022A425 /* error.h */,
+				73492F1A2117F7740022A425 /* http.h */,
+				73492F1B2117F7740022A425 /* handshake.h */,
+				73492F1C2117F7740022A425 /* dh.h */,
+				73492F1D2117F7740022A425 /* dhgroups.h */,
+				73492F1E2117F7740022A425 /* rtmp_sys.h */,
+				73492F1F2117F7740022A425 /* hashswf.c */,
+				73492F202117F7740022A425 /* rtmp.c */,
+				73492F212117F7740022A425 /* amf.h */,
+				73492F222117F7740022A425 /* error.c */,
+				73492F232117F7740022A425 /* log.h */,
+				73492F242117F7740022A425 /* bytes.h */,
+				73492F252117F7740022A425 /* parseurl.c */,
+				73492F262117F7740022A425 /* amf.c */,
+				73492F272117F7740022A425 /* rtmp.h */,
+			);
+			path = "pili-librtmp";
+			sourceTree = "<group>";
+		};
 		734A2305210B1E0100D44129 /* AACAudioPlayer */ = {
 			isa = PBXGroup;
 			children = (
@@ -183,6 +241,7 @@
 				73C342C321001E910005BE62 /* GCDWebUploader */,
 				73B55D6A20FECA89008C3DE6 /* H264lib */,
 				73D60B952105A68300A2B2B2 /* AAClib */,
+				73492F162117F7740022A425 /* RTMPLib */,
 				73B55D5420FEC8F4008C3DE6 /* AppDelegate.h */,
 				73B55D5520FEC8F4008C3DE6 /* AppDelegate.m */,
 				73B55D5720FEC8F4008C3DE6 /* ViewController.h */,
@@ -390,22 +449,28 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73492F282117F7740022A425 /* log.c in Sources */,
 				73C342F121001E910005BE62 /* GCDWebServerConnection.m in Sources */,
 				73C342F621001E910005BE62 /* GCDWebServerURLEncodedFormRequest.m in Sources */,
+				73492F302117F8C00022A425 /* RtmpSocket.m in Sources */,
 				736F678E21130B310027F52F /* AACDecoder.m in Sources */,
 				73C342F821001E910005BE62 /* GCDWebServerDataRequest.m in Sources */,
 				73C342F421001E910005BE62 /* GCDWebServerDataResponse.m in Sources */,
+				73492F2D2117F7740022A425 /* amf.c in Sources */,
 				73D60B982105A6B400A2B2B2 /* AACEncoder.m in Sources */,
 				734A2315210B1E0100D44129 /* AACAudioOutputQueue.m in Sources */,
 				73C342F521001E910005BE62 /* GCDWebServerStreamedResponse.m in Sources */,
 				734A2314210B1E0100D44129 /* AACParsedAudioData.m in Sources */,
 				73C342EF21001E910005BE62 /* GCDWebServerFunctions.m in Sources */,
 				73C342F221001E910005BE62 /* GCDWebServerErrorResponse.m in Sources */,
+				73492F292117F7740022A425 /* hashswf.c in Sources */,
 				73C342F721001E910005BE62 /* GCDWebServerMultiPartFormRequest.m in Sources */,
 				73B55D5920FEC8F4008C3DE6 /* ViewController.m in Sources */,
+				73492F2A2117F7740022A425 /* rtmp.c in Sources */,
 				73C342F321001E910005BE62 /* GCDWebServerFileResponse.m in Sources */,
 				73C34302210088E20005BE62 /* H264ToMp4.m in Sources */,
 				734A2317210B1E0100D44129 /* AACAudioPlayer.m in Sources */,
+				73492F2C2117F7740022A425 /* parseurl.c in Sources */,
 				73B55D7320FECA89008C3DE6 /* H264HwDecoder.m in Sources */,
 				734A2313210B1E0100D44129 /* AACAudioFileStream.m in Sources */,
 				734A2312210B1E0100D44129 /* AACAudioBuffer.m in Sources */,
@@ -417,6 +482,7 @@
 				73C342ED21001E910005BE62 /* GCDWebServerResponse.m in Sources */,
 				73C342F021001E910005BE62 /* GCDWebServer.m in Sources */,
 				73C342F921001E910005BE62 /* GCDWebServerFileRequest.m in Sources */,
+				73492F2B2117F7740022A425 /* error.c in Sources */,
 				73296D4721087C37001B207E /* AACHelper.m in Sources */,
 				73C342EB21001E910005BE62 /* GCDWebUploader.m in Sources */,
 				73C342FF21007B240005BE62 /* NaluHelper.m in Sources */,

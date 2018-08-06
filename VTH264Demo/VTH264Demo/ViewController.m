@@ -19,6 +19,7 @@
 #import "AACEncoder.h"
 #import "AACHelper.h"
 #import "AACAudioPlayer.h"
+#import "RtmpSocket.h"
 
 #define h264outputWidth     800
 #define h264outputHeight    600
@@ -35,7 +36,9 @@
 #define AAC_FILE_NAME       @"test.aac"
 #define MP3_FILE_NAME       @"test.mp3"
 
-@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate>
+#define TEST_RTMP_URL       @"rtmp://47.52.16.147:1935/hls/stream001"
+
+@interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate, RTMPSocketDelegate>
 
 @property (nonatomic, assign) AudioComponentInstance componetInstance;
 @property (nonatomic, assign) AudioComponent component;
@@ -88,6 +91,7 @@
 @property (nonatomic, strong) UIButton *toMp3Btn;
 @property (nonatomic, strong) UIButton *playMp3Btn;
 @property (nonatomic, strong) UIButton *playAACBtn;
+@property (nonatomic, strong) UIButton *pullRtmpBtn;
 
 @end
 
@@ -283,10 +287,20 @@
     [self.view addSubview:playAACBtn];
     self.playAACBtn = playAACBtn;
     
+    UIButton *pullRtmpBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 5 + btnHeight * 4, btnWidth, btnHeight)];
+    [pullRtmpBtn setTitle:@"RTMP拉流" forState:UIControlStateNormal];
+    [pullRtmpBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [pullRtmpBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [pullRtmpBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [pullRtmpBtn addTarget:self action:@selector(pullRtmpBtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    pullRtmpBtn.selected = NO;
+    [self.view addSubview:pullRtmpBtn];
+    self.pullRtmpBtn = pullRtmpBtn;
+    
     //显示拍摄原有内容
     self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
     [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
-    self.recordLayer.frame = CGRectMake(0, btnHeight * 4 + btnTop * 5, size.width, (size.height - (btnHeight * 4 + btnTop * 5)) / 2);
+    self.recordLayer.frame = CGRectMake(0, btnHeight * 5 + btnTop * 6, size.width, (size.height - (btnHeight * 5 + btnTop * 6)) / 2);
     
     self.useOpenGLPlayLayer = YES;
     
@@ -301,6 +315,11 @@
     self.sampleBufferDisplayLayer.opaque = YES;
     
     self.useAacPlayer = NO;
+}
+
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
 }
 
 #pragma - mark - UI
@@ -572,6 +591,13 @@
             [self.avPlayerVC.player play];
         }];
     }
+}
+
+- (void)pullRtmpBtnClick:(id)sender
+{
+    RtmpSocket *rtmp = [[RtmpSocket alloc] initWithURL:[NSURL URLWithString:TEST_RTMP_URL]];
+    [rtmp setDelegate:self];
+    [rtmp start];
 }
 
 #pragma - mark - Audio
@@ -1126,6 +1152,23 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 - (void)webUploader:(GCDWebUploader *)uploader didDeleteItemAtPath:(NSString *)path
 {
     NSLog(@"webUploader didDeleteItemAtPath:%@", path);
+}
+
+#pragma - mark - RTMPSocketDelegate
+
+- (void)socketBufferStatus:(RtmpSocket *)socket status:(RTMPBuffferState)status
+{
+    NSLog(@"socketBufferStatus status %@", @(status));
+}
+
+- (void)socketStatus:(RtmpSocket *)socket status:(RTMPSocketState)status
+{
+    NSLog(@"socketStatus status %@", @(status));
+}
+
+- (void)socketDidError:(RtmpSocket *)socket errorCode:(RTMPErrorCode)errorCode
+{
+    NSLog(@"socketDidError errorCode %@", @(errorCode));
 }
 
 @end
