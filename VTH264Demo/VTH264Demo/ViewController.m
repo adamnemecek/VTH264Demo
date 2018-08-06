@@ -92,7 +92,10 @@
 @property (nonatomic, strong) UIButton *toMp3Btn;
 @property (nonatomic, strong) UIButton *playMp3Btn;
 @property (nonatomic, strong) UIButton *playAACBtn;
+@property (nonatomic, strong) UIButton *pushRtmpBtn;
 @property (nonatomic, strong) UIButton *pullRtmpBtn;
+@property (nonatomic, strong) UITextField *pushTextField;
+@property (nonatomic, strong) UITextField *pullTextField;
 
 @end
 
@@ -288,7 +291,26 @@
     [self.view addSubview:playAACBtn];
     self.playAACBtn = playAACBtn;
     
-    UIButton *pullRtmpBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 5 + btnHeight * 4, btnWidth, btnHeight)];
+    UIButton *pushRtmpBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 5 + btnHeight * 4, btnWidth, btnHeight)];
+    [pushRtmpBtn setTitle:@"RTMP推流" forState:UIControlStateNormal];
+    [pushRtmpBtn setBackgroundColor:[UIColor lightGrayColor]];
+    [pushRtmpBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
+    [pushRtmpBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [pushRtmpBtn addTarget:self action:@selector(pushRtmpBtnClick:) forControlEvents:UIControlEventTouchUpInside];
+    pushRtmpBtn.selected = NO;
+    [self.view addSubview:pushRtmpBtn];
+    self.pushRtmpBtn = pushRtmpBtn;
+    
+    UITextField *pushTextField = [[UITextField alloc] initWithFrame:CGRectMake(btnX * 2 + btnWidth, btnTop * 5 + btnHeight * 4, size.width - btnWidth - btnX * 3, btnHeight)];
+    [pushTextField setTextAlignment:NSTextAlignmentCenter];
+    [pushTextField setText:TEST_RTMP_URL];
+    [pushTextField setTextColor:[UIColor blueColor]];
+    [pushTextField setBackgroundColor:[UIColor lightGrayColor]];
+    pushTextField.adjustsFontSizeToFitWidth = YES;
+    [self.view addSubview:pushTextField];
+    self.pushTextField = pushTextField;
+    
+    UIButton *pullRtmpBtn = [[UIButton alloc] initWithFrame:CGRectMake(btnX, btnTop * 6 + btnHeight * 5, btnWidth, btnHeight)];
     [pullRtmpBtn setTitle:@"RTMP拉流" forState:UIControlStateNormal];
     [pullRtmpBtn setBackgroundColor:[UIColor lightGrayColor]];
     [pullRtmpBtn.titleLabel setAdjustsFontSizeToFitWidth:YES];
@@ -298,10 +320,19 @@
     [self.view addSubview:pullRtmpBtn];
     self.pullRtmpBtn = pullRtmpBtn;
     
+    UITextField *pullTextField = [[UITextField alloc] initWithFrame:CGRectMake(btnX * 2 + btnWidth, btnTop * 6 + btnHeight * 5, size.width - btnWidth - btnX * 3, btnHeight)];
+    [pullTextField setTextAlignment:NSTextAlignmentCenter];
+    [pullTextField setText:TEST_RTMP_URL];
+    [pullTextField setTextColor:[UIColor blueColor]];
+    [pullTextField setBackgroundColor:[UIColor lightGrayColor]];
+    pullTextField.adjustsFontSizeToFitWidth = YES;
+    [self.view addSubview:pullTextField];
+    self.pullTextField = pullTextField;
+    
     //显示拍摄原有内容
     self.recordLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.captureSession];
     [self.recordLayer setVideoGravity:AVLayerVideoGravityResizeAspectFill];
-    self.recordLayer.frame = CGRectMake(0, btnHeight * 5 + btnTop * 6, size.width, (size.height - (btnHeight * 5 + btnTop * 6)) / 2);
+    self.recordLayer.frame = CGRectMake(0, btnHeight * 6 + btnTop * 7, size.width, (size.height - (btnHeight * 6 + btnTop * 7)) / 2);
     
     self.useOpenGLPlayLayer = YES;
     
@@ -321,6 +352,11 @@
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+}
+
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    [self.view endEditing:YES];
 }
 
 #pragma - mark - UI
@@ -594,9 +630,16 @@
     }
 }
 
+- (void)pushRtmpBtnClick:(id)sender
+{
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:[NSURL URLWithString:self.pullTextField.text]];
+    [_rtmpSocket setDelegate:self];
+    [_rtmpSocket start];
+}
+
 - (void)pullRtmpBtnClick:(id)sender
 {
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:[NSURL URLWithString:TEST_RTMP_URL]];
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:[NSURL URLWithString:self.pullTextField.text]];
     [_rtmpSocket setDelegate:self];
     [_rtmpSocket start];
 }
