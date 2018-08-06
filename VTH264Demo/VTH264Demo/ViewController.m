@@ -79,6 +79,7 @@
 @property (nonatomic, strong) NSString *mp3File;
 @property (nonatomic, strong) NSFileHandle *audioFileHandle;
 @property (nonatomic, strong) GCDWebUploader *webServer;
+@property (nonatomic, strong) RTMPSocket *rtmpSocket;
 @property (nonatomic, strong) UIButton *startBtn;
 @property (nonatomic, strong) UIButton *switchBtn;
 @property (nonatomic, strong) UIButton *showFileBtn;
@@ -595,9 +596,9 @@
 
 - (void)pullRtmpBtnClick:(id)sender
 {
-    RtmpSocket *rtmp = [[RtmpSocket alloc] initWithURL:[NSURL URLWithString:TEST_RTMP_URL]];
-    [rtmp setDelegate:self];
-    [rtmp start];
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:[NSURL URLWithString:TEST_RTMP_URL]];
+    [_rtmpSocket setDelegate:self];
+    [_rtmpSocket start];
 }
 
 #pragma - mark - Audio
@@ -1156,17 +1157,21 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 
 #pragma - mark - RTMPSocketDelegate
 
-- (void)socketBufferStatus:(RtmpSocket *)socket status:(RTMPBuffferState)status
+- (void)socketBufferStatus:(RTMPSocket *)socket status:(RTMPBuffferState)status
 {
     NSLog(@"socketBufferStatus status %@", @(status));
 }
 
-- (void)socketStatus:(RtmpSocket *)socket status:(RTMPSocketState)status
+- (void)socketStatus:(RTMPSocket *)socket status:(RTMPSocketState)status
 {
     NSLog(@"socketStatus status %@", @(status));
+    if (status == RTMPSocketStart)
+    {
+        [_rtmpSocket receiveFrame:nil];
+    }
 }
 
-- (void)socketDidError:(RtmpSocket *)socket errorCode:(RTMPErrorCode)errorCode
+- (void)socketDidError:(RTMPSocket *)socket errorCode:(RTMPErrorCode)errorCode
 {
     NSLog(@"socketDidError errorCode %@", @(errorCode));
 }

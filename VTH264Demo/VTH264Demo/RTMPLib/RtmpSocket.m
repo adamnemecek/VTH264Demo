@@ -45,7 +45,15 @@ SAVC(mp4a);
 
 @end
 
-@interface RtmpSocket ()
+@implementation RTMPAudioFrame
+
+@end
+
+@implementation RTMPVideoFrame
+
+@end
+
+@interface RTMPSocket ()
 {
     PILI_RTMP *_rtmp;
 }
@@ -69,7 +77,7 @@ SAVC(mp4a);
 
 @end
 
-@implementation RtmpSocket
+@implementation RTMPSocket
 
 #pragma - mark - RtmpSocket
 
@@ -181,6 +189,17 @@ SAVC(mp4a);
     if (!self.isSending)
     {
         [self sendFrame];
+    }
+}
+
+- (void)receiveFrame:(nullable RTMPFrame *)frame
+{
+    char buf[1024] = {0};
+    int ret = 0;
+    
+    while ((ret = PILI_RTMP_Read(_rtmp, buf, sizeof(buf))))
+    {
+        NSLog(@"ret = %@", @(ret));
     }
 }
 
@@ -603,7 +622,7 @@ Failed:
 
 void RTMPErrorCallback(RTMPError *error, void *userData)
 {
-    RtmpSocket *socket = (__bridge RtmpSocket *)userData;
+    RTMPSocket *socket = (__bridge RTMPSocket *)userData;
     if (error->code < 0)
     {
         [socket reconnect];
@@ -616,7 +635,7 @@ void ConnectionTimeCallback(PILI_CONNECTION_TIME *conn_time, void *userData)
 }
 
 #pragma - mark - LFStreamingBufferDelegate
-- (void)streamingBuffer:(nullable RtmpSocket *)buffer bufferState:(RTMPBuffferState)state
+- (void)streamingBuffer:(nullable RTMPSocket *)buffer bufferState:(RTMPBuffferState)state
 {
     if (self.delegate && [self.delegate respondsToSelector:@selector(socketBufferStatus:status:)])
     {

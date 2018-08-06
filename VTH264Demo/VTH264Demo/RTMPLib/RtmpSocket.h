@@ -32,17 +32,6 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
     RTMPError_ReConnectTimeOut = 205      ///< 重新连接服务器超时
 };
 
-@class RtmpSocket;
-@protocol RTMPSocketDelegate <NSObject>
-@optional
-// 回调当前缓冲区情况，可实现相关切换帧率 码率等策略
-- (void)socketBufferStatus:(RtmpSocket *)socket status:(RTMPBuffferState)status;
-// 回调当前网络情况
-- (void)socketStatus:(RtmpSocket *)socket status:(RTMPSocketState)status;
-- (void)socketDidError:(RtmpSocket *)socket errorCode:(RTMPErrorCode)errorCode;
-
-@end
-
 @interface RTMPFrame : NSObject
 
 @property (nonatomic, assign) uint64_t timestamp;
@@ -51,12 +40,38 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
 
 @end
 
-@interface RtmpSocket : NSObject
+@interface RTMPAudioFrame : RTMPFrame
+
+@property (nonatomic, strong) NSData *audioInfo;    /// flv打包中aac的header
+
+@end
+
+@interface RTMPVideoFrame : RTMPFrame
+
+@property (nonatomic, assign) BOOL isKeyFrame;
+@property (nonatomic, strong) NSData *sps;
+@property (nonatomic, strong) NSData *pps;
+
+@end
+
+@class RTMPSocket;
+@protocol RTMPSocketDelegate <NSObject>
+@optional
+// 回调当前缓冲区情况，可实现相关切换帧率 码率等策略
+- (void)socketBufferStatus:(RTMPSocket *)socket status:(RTMPBuffferState)status;
+// 回调当前网络情况
+- (void)socketStatus:(RTMPSocket *)socket status:(RTMPSocketState)status;
+- (void)socketDidError:(RTMPSocket *)socket errorCode:(RTMPErrorCode)errorCode;
+
+@end
+
+@interface RTMPSocket : NSObject
 
 - (instancetype)initWithURL:(nullable NSURL *)url;
 - (void)start;
 - (void)stop;
 - (void)sendFrame:(nullable RTMPFrame *)frame;
+- (void)receiveFrame:(nullable RTMPFrame *)frame;
 - (void)setDelegate:(nullable id <RTMPSocketDelegate>)delegate;
 
 @end
