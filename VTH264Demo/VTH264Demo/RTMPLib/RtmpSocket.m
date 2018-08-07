@@ -329,7 +329,10 @@ SAVC(mp4a);
         [self.delegate socketStatus:self status:RTMPSocketStart];
     }
 
-    [self sendMetaData];
+    if (_isPublish)
+    {
+        [self sendMetaData];
+    }
 
     _isConnected = YES;
     _isConnecting = NO;

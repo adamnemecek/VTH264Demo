@@ -20,6 +20,7 @@
 
 @property (nonatomic, weak) id<AACEncoderDelegate> delegate;
 @property (nonatomic, assign) UInt32 channelsPerFrame; // 1:单声道；2:双声道
+@property (nonatomic, strong) dispatch_queue_t dataCallbackQueue;
 
 - (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp;
 - (void)endEncode;

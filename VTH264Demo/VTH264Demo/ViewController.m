@@ -188,7 +188,8 @@
     self.aacEncoder = [[AACEncoder alloc] init];
     self.aacEncoder.delegate = self;
     self.aacEncoder.channelsPerFrame = self.channelsPerFrame;
-
+    self.aacEncoder.dataCallbackQueue = self.audioDataProcesQueue;
+    
     CGFloat btnTop = 50;
     CGFloat btnWidth = 100;
     CGFloat btnHeight = 40;
@@ -1210,8 +1211,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [h264Data appendData:ByteHeader];
     [h264Data appendData:data];
     [self.videoFileHandle writeData:h264Data];
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
-
+    
     // 上传, 时间戳对齐
     if (self.uploading)
     {
@@ -1236,6 +1236,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
             [self pushSendBuffer:videoFrame];
         }
     }
+    
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
     
 #pragma - mark - H264HwDecoderDelegate

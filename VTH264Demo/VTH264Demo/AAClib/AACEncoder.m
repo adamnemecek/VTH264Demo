@@ -18,17 +18,22 @@
 
 - (void)startEncode:(CMSampleBufferRef)sampleBuffer timeStamp:(uint64_t)timeStamp
 {
-    char aacData[4096] = {0};
-    int aacLen = sizeof(aacData);
+//    CFRetain(sampleBuffer);
+//    dispatch_async(self.dataCallbackQueue, ^{
     
-    if ([self encoderAAC:sampleBuffer aacData:aacData aacLen:&aacLen] == YES)
-    {
-        NSData *data = [NSData dataWithBytes:aacData length:aacLen];
-        if (self.delegate && [self.delegate respondsToSelector:@selector(getEncodedAudioData:timeStamp:)])
+        char aacData[4096] = {0};
+        int aacLen = sizeof(aacData);
+        
+        if ([self encoderAAC:sampleBuffer aacData:aacData aacLen:&aacLen] == YES)
         {
-            [self.delegate getEncodedAudioData:data timeStamp:timeStamp];
+            NSData *data = [NSData dataWithBytes:aacData length:aacLen];
+            if (self.delegate && [self.delegate respondsToSelector:@selector(getEncodedAudioData:timeStamp:)])
+            {
+                [self.delegate getEncodedAudioData:data timeStamp:timeStamp];
+            }
         }
-    }
+//        CFRelease(sampleBuffer);
+//    });
 }
 
 - (BOOL)createAudioConvert:(CMSampleBufferRef)sampleBuffer
