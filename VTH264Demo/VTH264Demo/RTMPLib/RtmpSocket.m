@@ -8,6 +8,8 @@
 
 #import "RtmpSocket.h"
 #import "rtmp.h"
+#import "error.h"
+#import "log.h"
 
 #define RTMP_RECEIVE_TIMEOUT    2
 #define DATA_ITEMS_MAX_COUNT    100
@@ -54,26 +56,22 @@ SAVC(mp4a);
 @end
 
 @interface RTMPSocket ()
-{
-    PILI_RTMP *_rtmp;
-}
+
+@property (nonatomic, assign) RTMP *rtmp;
 @property (nonatomic, weak) id<RTMPSocketDelegate> delegate;
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic, strong) NSMutableArray *buffer;
 @property (nonatomic, strong) dispatch_queue_t rtmpSendQueue;
-
-@property (nonatomic, assign) RTMPError error;  //错误信息
 @property (nonatomic, assign) NSInteger retryTimes4netWorkBreaken;
 @property (nonatomic, assign) NSInteger reconnectInterval;
 @property (nonatomic, assign) NSInteger reconnectCount;
-
 @property (atomic, assign) BOOL isSending;
 @property (nonatomic, assign) BOOL isConnected;
 @property (nonatomic, assign) BOOL isConnecting;
 @property (nonatomic, assign) BOOL isReconnecting;
-
 @property (nonatomic, assign) BOOL sendVideoHead;
 @property (nonatomic, assign) BOOL sendAudioHead;
+@property (nonatomic, assign) BOOL isPublish;
 
 @end
 
@@ -81,12 +79,12 @@ SAVC(mp4a);
 
 #pragma - mark - RtmpSocket
 
-- (nullable instancetype)initWithURL:(nullable NSURL *)url
+- (instancetype)initWithURL:(nullable NSURL *)url isPublish:(BOOL)isPublish
 {
-    return [self initWithURL:url reconnectInterval:0 reconnectCount:0];
+    return [self initWithURL:url reconnectInterval:0 reconnectCount:0 isPublish:isPublish];
 }
 
-- (nullable instancetype)initWithURL:(nullable NSURL *)url reconnectInterval:(NSInteger)reconnectInterval reconnectCount:(NSInteger)reconnectCount
+- (nullable instancetype)initWithURL:(nullable NSURL *)url reconnectInterval:(NSInteger)reconnectInterval reconnectCount:(NSInteger)reconnectCount isPublish:(BOOL)isPublish
 {
     if (!url)
     {
@@ -96,6 +94,7 @@ SAVC(mp4a);
     if (self = [super init])
     {
         _url = url;
+        _isPublish = isPublish;
         if (reconnectInterval > 0)
         {
             _reconnectInterval = reconnectInterval;
@@ -114,7 +113,10 @@ SAVC(mp4a);
             _reconnectCount = RetryTimesBreaken;
         }
         
-        [self addObserver:self forKeyPath:@"isSending" options:NSKeyValueObservingOptionNew context:nil];//这里改成observer主要考虑一直到发送出错情况下，可以继续发送
+        //这里改成observer主要考虑一直到发送出错情况下，可以继续发送
+        [self addObserver:self forKeyPath:@"isSending" options:NSKeyValueObservingOptionNew context:nil];
+        
+        RTMP_LogSetLevel(RTMP_LOGALL);
     }
     
     return self;
@@ -147,8 +149,8 @@ SAVC(mp4a);
     
     if (_rtmp != NULL)
     {
-        PILI_RTMP_Close(_rtmp, &_error);
-        PILI_RTMP_Free(_rtmp);
+        RTMP_Close(_rtmp);
+        RTMP_Free(_rtmp);
     }
     
     [self RTMP264_Connect:(char *)[_url.absoluteString cStringUsingEncoding:NSASCIIStringEncoding]];
@@ -170,8 +172,8 @@ SAVC(mp4a);
     }
     if (_rtmp != NULL)
     {
-        PILI_RTMP_Close(_rtmp, &_error);
-        PILI_RTMP_Free(_rtmp);
+        RTMP_Close(_rtmp);
+        RTMP_Free(_rtmp);
         _rtmp = NULL;
     }
     [self clean];
@@ -197,7 +199,7 @@ SAVC(mp4a);
     char buf[1024] = {0};
     int ret = 0;
     
-    while ((ret = PILI_RTMP_Read(_rtmp, buf, sizeof(buf))))
+    while ((ret = RTMP_Read(_rtmp, buf, sizeof(buf))))
     {
         NSLog(@"ret = %@", @(ret));
     }
@@ -288,33 +290,30 @@ SAVC(mp4a);
 {
     //由于摄像头的timestamp是一直在累加，需要每次得到相对时间戳
     //分配与初始化
-    _rtmp = PILI_RTMP_Alloc();
-    PILI_RTMP_Init(_rtmp);
+    _rtmp = RTMP_Alloc();
+    RTMP_Init(_rtmp);
 
     //设置URL
-    if (PILI_RTMP_SetupURL(_rtmp, push_url, &_error) == FALSE)
+    if (RTMP_SetupURL(_rtmp, push_url) == FALSE)
     {
         //log(LOG_ERR, "RTMP_SetupURL() failed!");
         goto Failed;
     }
 
-    _rtmp->m_errorCallback = RTMPErrorCallback;
-    _rtmp->m_connCallback = ConnectionTimeCallback;
-    _rtmp->m_userData = (__bridge void *)self;
     _rtmp->m_msgCounter = 1;
     _rtmp->Link.timeout = RTMP_RECEIVE_TIMEOUT;
     
     //设置可写，即发布流，这个函数必须在连接前使用，否则无效
-//    PILI_RTMP_EnableWrite(_rtmp);
+//    RTMP_EnableWrite(_rtmp);
 
     //连接服务器
-    if (PILI_RTMP_Connect(_rtmp, NULL, &_error) == FALSE)
+    if (RTMP_Connect(_rtmp, NULL) == FALSE)
     {
         goto Failed;
     }
 
     //连接流
-    if (PILI_RTMP_ConnectStream(_rtmp, 0, &_error) == FALSE)
+    if (RTMP_ConnectStream(_rtmp, 0) == FALSE)
     {
         goto Failed;
     }
@@ -333,8 +332,8 @@ SAVC(mp4a);
     return 0;
 
 Failed:
-    PILI_RTMP_Close(_rtmp, &_error);
-    PILI_RTMP_Free(_rtmp);
+    RTMP_Close(_rtmp);
+    RTMP_Free(_rtmp);
     _rtmp = NULL;
     [self reconnect];
     return -1;
@@ -344,7 +343,7 @@ Failed:
 
 - (void)sendMetaData
 {
-    PILI_RTMPPacket packet;
+    RTMPPacket packet;
 
     char pbuf[2048], *pend = pbuf + sizeof(pbuf);
 
@@ -391,7 +390,7 @@ Failed:
     *enc++ = AMF_OBJECT_END;
 
     packet.m_nBodySize = (uint32_t)(enc - packet.m_body);
-    if (!PILI_RTMP_SendPacket(_rtmp, &packet, FALSE, &_error))
+    if (!RTMP_SendPacket(_rtmp, &packet, FALSE))
     {
         return;
     }
@@ -473,9 +472,9 @@ Failed:
 - (NSInteger)sendPacket:(unsigned int)nPacketType data:(unsigned char *)data size:(NSInteger)size nTimestamp:(uint64_t)nTimestamp
 {
     NSInteger rtmpLength = size;
-    PILI_RTMPPacket rtmp_pack;
-    PILI_RTMPPacket_Reset(&rtmp_pack);
-    PILI_RTMPPacket_Alloc(&rtmp_pack, (uint32_t)rtmpLength);
+    RTMPPacket rtmp_pack;
+    RTMPPacket_Reset(&rtmp_pack);
+    RTMPPacket_Alloc(&rtmp_pack, (uint32_t)rtmpLength);
 
     rtmp_pack.m_nBodySize = (uint32_t)size;
     memcpy(rtmp_pack.m_body, data, size);
@@ -492,15 +491,15 @@ Failed:
 
     NSInteger nRet = [self RtmpPacketSend:&rtmp_pack];
 
-    PILI_RTMPPacket_Free(&rtmp_pack);
+    RTMPPacket_Free(&rtmp_pack);
     return nRet;
 }
 
-- (NSInteger)RtmpPacketSend:(PILI_RTMPPacket *)packet
+- (NSInteger)RtmpPacketSend:(RTMPPacket *)packet
 {
-    if (_rtmp && PILI_RTMP_IsConnected(_rtmp))
+    if (_rtmp && RTMP_IsConnected(_rtmp))
     {
-        int success = PILI_RTMP_SendPacket(_rtmp, packet, 0, &_error);
+        int success = RTMP_SendPacket(_rtmp, packet, 0);
         return success;
     }
     return -1;
@@ -579,8 +578,8 @@ Failed:
     }
     if (_rtmp != NULL)
     {
-        PILI_RTMP_Close(_rtmp, &_error);
-        PILI_RTMP_Free(_rtmp);
+        RTMP_Close(_rtmp);
+        RTMP_Free(_rtmp);
         _rtmp = NULL;
     }
     _sendAudioHead = NO;
@@ -593,27 +592,11 @@ Failed:
     
     if (_rtmp != NULL)
     {
-        PILI_RTMP_Close(_rtmp, &_error);
-        PILI_RTMP_Free(_rtmp);
+        RTMP_Close(_rtmp);
+        RTMP_Free(_rtmp);
     }
     
     [self RTMP264_Connect:(char *)[_url.absoluteString cStringUsingEncoding:NSASCIIStringEncoding]];
-}
-
-#pragma - mark - CallBack
-
-void RTMPErrorCallback(RTMPError *error, void *userData)
-{
-    RTMPSocket *socket = (__bridge RTMPSocket *)userData;
-    if (error->code < 0)
-    {
-        [socket reconnect];
-    }
-}
-
-void ConnectionTimeCallback(PILI_CONNECTION_TIME *conn_time, void *userData)
-{
-    
 }
 
 #pragma - mark - LFStreamingBufferDelegate

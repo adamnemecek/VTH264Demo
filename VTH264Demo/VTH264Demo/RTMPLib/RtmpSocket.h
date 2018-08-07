@@ -67,7 +67,7 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
 
 @interface RTMPSocket : NSObject
 
-- (instancetype)initWithURL:(nullable NSURL *)url;
+- (instancetype)initWithURL:(nullable NSURL *)url isPublish:(BOOL)isPublish;
 - (void)start;
 - (void)stop;
 - (void)sendFrame:(nullable RTMPFrame *)frame;

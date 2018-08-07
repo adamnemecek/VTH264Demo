@@ -632,14 +632,16 @@
 
 - (void)pushRtmpBtnClick:(id)sender
 {
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:[NSURL URLWithString:self.pullTextField.text]];
+    NSURL *url = [NSURL URLWithString:self.pullTextField.text];
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:YES];
     [_rtmpSocket setDelegate:self];
     [_rtmpSocket start];
 }
 
 - (void)pullRtmpBtnClick:(id)sender
 {
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:[NSURL URLWithString:self.pullTextField.text]];
+    NSURL *url = [NSURL URLWithString:self.pullTextField.text];
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:NO];
     [_rtmpSocket setDelegate:self];
     [_rtmpSocket start];
 }
