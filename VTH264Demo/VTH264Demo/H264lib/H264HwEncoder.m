@@ -167,11 +167,11 @@ void didCompressH264(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStat
             memcpy(&NALUnitLength, dataPointer + bufferOffset, AVCCHeaderLength);
             NALUnitLength = CFSwapInt32BigToHost(NALUnitLength);
             NSData *data = [[NSData alloc] initWithBytes:(dataPointer + bufferOffset + AVCCHeaderLength) length:NALUnitLength];
-            if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedVideoData:isKeyFrame:timeStamp:)])
+            if (encoder.delegate && [encoder.delegate respondsToSelector:@selector(getEncodedVideoData:sps:pps:isKeyFrame:timeStamp:)])
             {
                 dispatch_async(encoder.dataCallbackQueue, ^{
                     
-                    [encoder.delegate getEncodedVideoData:data isKeyFrame:keyframe timeStamp:timeStamp];
+                    [encoder.delegate getEncodedVideoData:data sps:encoder.sps pps:encoder.pps isKeyFrame:keyframe timeStamp:timeStamp];
                 });
             }
             bufferOffset += AVCCHeaderLength + NALUnitLength;

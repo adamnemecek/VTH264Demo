@@ -95,6 +95,7 @@ SAVC(mp4a);
     {
         _url = url;
         _isPublish = isPublish;
+        _buffer = [NSMutableArray array];
         if (reconnectInterval > 0)
         {
             _reconnectInterval = reconnectInterval;
@@ -230,6 +231,8 @@ SAVC(mp4a);
 
             // 调用发送接口
             RTMPFrame *frame = [weakSelf.buffer firstObject];
+            [weakSelf.buffer removeObjectAtIndex:0];
+            
             if ([frame isKindOfClass:[RTMPVideoFrame class]])
             {
                 if (!weakSelf.sendVideoHead)
@@ -304,7 +307,10 @@ SAVC(mp4a);
     _rtmp->Link.timeout = RTMP_RECEIVE_TIMEOUT;
     
     //设置可写，即发布流，这个函数必须在连接前使用，否则无效
-//    RTMP_EnableWrite(_rtmp);
+    if (_isPublish)
+    {
+        RTMP_EnableWrite(_rtmp);
+    }
 
     //连接服务器
     if (RTMP_Connect(_rtmp, NULL) == FALSE)
@@ -323,7 +329,7 @@ SAVC(mp4a);
         [self.delegate socketStatus:self status:RTMPSocketStart];
     }
 
-//    [self sendMetaData];
+    [self sendMetaData];
 
     _isConnected = YES;
     _isConnecting = NO;

@@ -13,7 +13,7 @@
 @protocol H264HwEncoderDelegate <NSObject>
 
 - (void)getSpsPps:(NSData *)sps pps:(NSData *)pps;
-- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp;
+- (void)getEncodedVideoData:(NSData *)data sps:(NSData *)sps pps:(NSData *)pps isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp;
 
 @end
 

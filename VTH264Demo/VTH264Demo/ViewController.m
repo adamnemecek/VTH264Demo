@@ -40,46 +40,7 @@
 
 @interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, AACEncoderDelegate, H264HwEncoderDelegate, H264HwDecoderDelegate, GCDWebUploaderDelegate, RTMPSocketDelegate>
 
-@property (nonatomic, assign) AudioComponentInstance componetInstance;
-@property (nonatomic, assign) AudioComponent component;
-@property (nonatomic, strong) dispatch_queue_t taskQueue;
-@property (nonatomic, assign) NSUInteger captureAudioFrameCount;
-@property (nonatomic, assign) NSUInteger encodeAudioFrameCount;
-@property (nonatomic, strong) AVCaptureSession *captureSession;
-@property (nonatomic, strong) AVCaptureConnection *connectionVideo;
-@property (nonatomic, strong) AVCaptureConnection *connectionAudio;
-@property (nonatomic, strong) AVCaptureDevice *cameraDeviceBack;
-@property (nonatomic, strong) AVCaptureDevice *cameraDeviceFront;
-@property (nonatomic, assign) BOOL cameraDeviceIsFront;
-@property (nonatomic, strong) AVCaptureVideoPreviewLayer *recordLayer;
-@property (nonatomic, strong) AVSampleBufferDisplayLayer *sampleBufferDisplayLayer;
-@property (nonatomic, strong) AAPLEAGLLayer *openGLPlayLayer;
-@property (nonatomic, assign) BOOL useOpenGLPlayLayer;
-@property (nonatomic, strong) H264HwEncoder *h264Encoder;
-@property (nonatomic, strong) H264HwDecoder *h264Decoder;
-@property (nonatomic, assign) BOOL useasynDecode;
-@property (nonatomic, assign) BOOL timebaseSet;
-@property (nonatomic, assign) CFTimeInterval frame0time;
-@property (nonatomic, strong) H264ToMp4 *h264MP4;
-@property (nonatomic, strong) AACEncoder *aacEncoder;
-@property (nonatomic, assign) UInt32 channelsPerFrame;
-@property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
-@property (nonatomic, strong) AACAudioPlayer *aacPlayer;
-@property (nonatomic, assign) BOOL useAacPlayer;
-@property (nonatomic, strong) dispatch_queue_t videoDataProcesQueue;
-@property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
-@property (nonatomic, assign) NSUInteger captureVideoFrameCount;
-@property (nonatomic, assign) NSUInteger encodeVideoFrameCount;
-@property (nonatomic, assign) NSUInteger decodeVideoFrameCount;
-@property (nonatomic, strong) NSString *h264File;
-@property (nonatomic, strong) NSString *mp4File;
-@property (nonatomic, assign) CGSize fileSize;
-@property (nonatomic, strong) NSFileHandle *videoFileHandle;
-@property (nonatomic, strong) NSString *aacFile;
-@property (nonatomic, strong) NSString *mp3File;
-@property (nonatomic, strong) NSFileHandle *audioFileHandle;
-@property (nonatomic, strong) GCDWebUploader *webServer;
-@property (nonatomic, strong) RTMPSocket *rtmpSocket;
+// UI
 @property (nonatomic, strong) UIButton *startBtn;
 @property (nonatomic, strong) UIButton *switchBtn;
 @property (nonatomic, strong) UIButton *showFileBtn;
@@ -97,6 +58,66 @@
 @property (nonatomic, strong) UITextField *pushTextField;
 @property (nonatomic, strong) UITextField *pullTextField;
 
+// 音视频设备
+@property (nonatomic, assign) AudioComponentInstance componetInstance;
+@property (nonatomic, assign) AudioComponent component;
+@property (nonatomic, strong) dispatch_queue_t taskQueue;
+@property (nonatomic, assign) NSUInteger captureAudioFrameCount;
+@property (nonatomic, assign) NSUInteger encodeAudioFrameCount;
+@property (nonatomic, strong) AVCaptureSession *captureSession;
+@property (nonatomic, strong) AVCaptureConnection *connectionVideo;
+@property (nonatomic, strong) AVCaptureConnection *connectionAudio;
+@property (nonatomic, strong) AVCaptureDevice *cameraDeviceBack;
+@property (nonatomic, strong) AVCaptureDevice *cameraDeviceFront;
+@property (nonatomic, assign) BOOL cameraDeviceIsFront;
+
+// 图像渲染
+@property (nonatomic, strong) AVCaptureVideoPreviewLayer *recordLayer;
+@property (nonatomic, strong) AVSampleBufferDisplayLayer *sampleBufferDisplayLayer;
+@property (nonatomic, strong) AAPLEAGLLayer *openGLPlayLayer;
+@property (nonatomic, assign) BOOL useOpenGLPlayLayer;
+
+// 视频编解码
+@property (nonatomic, strong) H264HwEncoder *h264Encoder;
+@property (nonatomic, strong) H264HwDecoder *h264Decoder;
+@property (nonatomic, assign) BOOL useasynDecode;
+@property (nonatomic, assign) BOOL timebaseSet;
+@property (nonatomic, assign) CFTimeInterval frame0time;
+@property (nonatomic, strong) dispatch_queue_t videoDataProcesQueue;
+@property (nonatomic, assign) NSUInteger captureVideoFrameCount;
+@property (nonatomic, assign) NSUInteger encodeVideoFrameCount;
+@property (nonatomic, assign) NSUInteger decodeVideoFrameCount;
+
+// 音频编解码
+@property (nonatomic, strong) AACEncoder *aacEncoder;
+@property (nonatomic, assign) UInt32 channelsPerFrame;
+@property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
+@property (nonatomic, strong) AACAudioPlayer *aacPlayer;
+@property (nonatomic, assign) BOOL useAacPlayer;
+@property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
+
+// 文件读写
+@property (nonatomic, strong) H264ToMp4 *h264MP4;
+@property (nonatomic, strong) NSString *h264File;
+@property (nonatomic, strong) NSString *mp4File;
+@property (nonatomic, assign) CGSize fileSize;
+@property (nonatomic, strong) NSFileHandle *videoFileHandle;
+@property (nonatomic, strong) NSString *aacFile;
+@property (nonatomic, strong) NSString *mp3File;
+@property (nonatomic, strong) NSFileHandle *audioFileHandle;
+
+// HTTP server
+@property (nonatomic, strong) GCDWebUploader *webServer;
+
+// 推流
+@property (nonatomic, strong) RTMPSocket *rtmpSocket;
+@property (nonatomic, assign) uint64_t relativeTimestamps;  /// 上传相对时间戳
+@property (nonatomic, assign) BOOL hasCaptureAudio;         /// 当前是否采集到了音频
+@property (nonatomic, assign) BOOL hasKeyFrameVideo;        /// 当前是否采集到了关键帧
+@property (nonatomic, assign) BOOL uploading;               /// 是否开始上传
+@property (nonatomic, assign) BOOL isPublish;               /// 是推流还是拉流
+@property (nonatomic, strong) dispatch_queue_t sendFrameQueue;
+
 @end
 
 @implementation ViewController
@@ -108,6 +129,9 @@
     self.view.backgroundColor = [UIColor whiteColor];
     
     [GCDWebServer setLogLevel:4];
+    
+    //发送rtmp包队列
+    self.sendFrameQueue = dispatch_queue_create("com.pingan.sendFrame.queue", DISPATCH_QUEUE_SERIAL);
     
     //视频编码后数据返回的队列
     self.videoDataProcesQueue = dispatch_queue_create("com.pingan.videoProces.queue", DISPATCH_QUEUE_SERIAL);
@@ -632,16 +656,18 @@
 
 - (void)pushRtmpBtnClick:(id)sender
 {
+    self.isPublish = YES;
     NSURL *url = [NSURL URLWithString:self.pullTextField.text];
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:YES];
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
     [_rtmpSocket setDelegate:self];
     [_rtmpSocket start];
 }
 
 - (void)pullRtmpBtnClick:(id)sender
 {
+    self.isPublish = NO;
     NSURL *url = [NSURL URLWithString:self.pullTextField.text];
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:NO];
+    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
     [_rtmpSocket setDelegate:self];
     [_rtmpSocket start];
 }
@@ -1070,6 +1096,47 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     });
 }
 
+#pragma - mark - Push Stream
+
+- (BOOL)alignment
+{
+    if (self.hasCaptureAudio && self.hasKeyFrameVideo)
+    {
+        return YES;
+    }
+    else
+    {
+        return NO;
+    }
+}
+
+- (uint64_t)uploadTimestamp:(uint64_t)captureTimestamp
+{
+    uint64_t currentts = 0;
+    currentts = captureTimestamp - self.relativeTimestamps;
+    
+    return currentts;
+}
+
+- (void)pushSendBuffer:(RTMPFrame *)frame
+{
+    dispatch_async(self.sendFrameQueue, ^{
+        
+        if (self.relativeTimestamps == 0)
+        {
+            //记录音视频对齐之后的第一个发出去的帧时间戳，后续帧时间戳只记录差值，记录相对时间
+            self.relativeTimestamps = frame.timestamp;
+        }
+        
+        frame.timestamp = [self uploadTimestamp:frame.timestamp];
+        [self.rtmpSocket sendFrame:frame];
+        
+        NSLog(@"pushSendBuffer frame length = %@", @(frame.data.length));
+    });
+}
+
+#pragma - mark - Pull Stream
+
 #pragma - mark - AVCaptureVideoDataOutputSampleBufferDelegate
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
@@ -1133,7 +1200,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
 }
 
-- (void)getEncodedVideoData:(NSData *)data isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp
+- (void)getEncodedVideoData:(NSData *)data sps:(NSData *)sps pps:(NSData *)pps isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp
 {
     self.encodeVideoFrameCount++;
     NSLog(@"getEncodedVideoData data length %@, isKeyFrame %@, frameCount %@, timeStamp %@", @(data.length), @(isKeyFrame), @(self.encodeVideoFrameCount), @(timeStamp));
@@ -1144,6 +1211,31 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [h264Data appendData:data];
     [self.videoFileHandle writeData:h264Data];
     [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+
+    // 上传, 时间戳对齐
+    if (self.uploading)
+    {
+        RTMPVideoFrame *videoFrame = [RTMPVideoFrame new];
+        videoFrame.timestamp = timeStamp;
+        videoFrame.data = data;
+        videoFrame.isKeyFrame = isKeyFrame;
+        videoFrame.sps = sps;
+        videoFrame.pps = pps;
+        
+        //做音视频同步，此处要判断是否采集到音频，否则收到关键帧也丢弃
+        if (videoFrame.isKeyFrame)
+        {
+            if (self.hasCaptureAudio)
+            {
+                self.hasKeyFrameVideo = YES;
+            }
+        }
+        
+        if ([self alignment])
+        {
+            [self pushSendBuffer:videoFrame];
+        }
+    }
 }
     
 #pragma - mark - H264HwDecoderDelegate
@@ -1181,6 +1273,27 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [aacData appendData:data];
     
     [self.audioFileHandle writeData:aacData];
+    
+    // 上传, 时间戳对齐
+    if (self.uploading)
+    {
+        self.hasCaptureAudio = YES;
+        if ([self alignment])
+        {
+            RTMPAudioFrame *audioFrame = [RTMPAudioFrame new];
+            audioFrame.timestamp = timeStamp;
+            audioFrame.data = data;
+            
+            NSInteger sampleRateIndex = 4; // 对应44100
+            NSUInteger numberOfChannels = self.channelsPerFrame;
+            char exeData[2];
+            exeData[0] = 0x10 | ((sampleRateIndex >> 1) & 0x7);
+            exeData[1] = ((sampleRateIndex & 0x1) << 7) | ((numberOfChannels & 0xF) << 3);
+            audioFrame.audioInfo = [NSData dataWithBytes:exeData length:2];
+            
+            [self pushSendBuffer:audioFrame];
+        }
+    }
 }
 
 #pragma - mark - GCDWebUploaderDelegate
@@ -1212,7 +1325,15 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     NSLog(@"socketStatus status %@", @(status));
     if (status == RTMPSocketStart)
     {
-        [_rtmpSocket receiveFrame:nil];
+        if (self.isPublish)
+        {
+            self.uploading = YES;
+            [self startBtnClick:self.startBtn];
+        }
+        else
+        {
+            [_rtmpSocket receiveFrame:nil];
+        }
     }
 }
 
