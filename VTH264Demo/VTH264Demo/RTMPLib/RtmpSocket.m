@@ -195,15 +195,18 @@ SAVC(mp4a);
     }
 }
 
-- (void)receiveFrame:(nullable RTMPFrame *)frame
+- (NSArray <RTMPFrame *> *)receiveFrame
 {
-    char buf[1024] = {0};
-    int ret = 0;
-    
-    while ((ret = RTMP_Read(_rtmp, buf, sizeof(buf))))
+    NSMutableArray *frameArray = [NSMutableArray array];
+    char buf[RTMP_BUFFER_CACHE_SIZE] = {0};
+    // buf 足够大，一次读可以读一个完整的帧
+    int ret = RTMP_Read(_rtmp, buf, sizeof(buf));
+    if (ret > 0)
     {
-        NSLog(@"ret = %@", @(ret));
+        NSLog(@"receiveFrame len = %@", @(ret));
     }
+    
+    return frameArray;
 }
 
 - (void)setDelegate:(id<RTMPSocketDelegate>)delegate

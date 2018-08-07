@@ -71,7 +71,7 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
 - (void)start;
 - (void)stop;
 - (void)sendFrame:(nullable RTMPFrame *)frame;
-- (void)receiveFrame:(nullable RTMPFrame *)frame;
+- (NSArray <RTMPFrame *> *)receiveFrame;
 - (void)setDelegate:(nullable id <RTMPSocketDelegate>)delegate;
 
 @end

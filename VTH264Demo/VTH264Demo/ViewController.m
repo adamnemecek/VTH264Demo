@@ -116,7 +116,8 @@
 @property (nonatomic, assign) BOOL hasKeyFrameVideo;        /// 当前是否采集到了关键帧
 @property (nonatomic, assign) BOOL uploading;               /// 是否开始上传
 @property (nonatomic, assign) BOOL isPublish;               /// 是推流还是拉流
-@property (nonatomic, strong) dispatch_queue_t sendFrameQueue;
+@property (nonatomic, strong) dispatch_queue_t frameQueue;  /// 处理frame的队列
+@property (nonatomic, assign) BOOL pulling;                 /// 开始拉流
 
 @end
 
@@ -131,7 +132,7 @@
     [GCDWebServer setLogLevel:4];
     
     //发送rtmp包队列
-    self.sendFrameQueue = dispatch_queue_create("com.pingan.sendFrame.queue", DISPATCH_QUEUE_SERIAL);
+    self.frameQueue = dispatch_queue_create("com.pingan.sendFrame.queue", DISPATCH_QUEUE_SERIAL);
     
     //视频编码后数据返回的队列
     self.videoDataProcesQueue = dispatch_queue_create("com.pingan.videoProces.queue", DISPATCH_QUEUE_SERIAL);
@@ -666,6 +667,7 @@
 
 - (void)pullRtmpBtnClick:(id)sender
 {
+    self.pulling = YES;
     self.isPublish = NO;
     NSURL *url = [NSURL URLWithString:self.pullTextField.text];
     _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
@@ -1121,7 +1123,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 
 - (void)pushSendBuffer:(RTMPFrame *)frame
 {
-    dispatch_async(self.sendFrameQueue, ^{
+    dispatch_async(self.frameQueue, ^{
         
         if (self.relativeTimestamps == 0)
         {
@@ -1137,6 +1139,41 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 }
 
 #pragma - mark - Pull Stream
+
+- (void)pullReceiveBuffer
+{
+    dispatch_async(self.frameQueue, ^{
+        
+        NSMutableArray *frameArray = [NSMutableArray array];
+        NSArray *frameArr;
+        while (self.pulling)
+        {
+            @autoreleasepool {
+                
+                frameArr = [_rtmpSocket receiveFrame];
+                if (frameArr.count > 0)
+                {
+                    NSLog(@"frame count %@", @(frameArr.count));
+                    [frameArray addObjectsFromArray:frameArr];
+                    
+                    for (RTMPFrame *frame in frameArray)
+                    {
+                        if ([frame isKindOfClass:[RTMPVideoFrame class]])
+                        {
+                            
+                        }
+                        else if ([frame isKindOfClass:[RTMPAudioFrame class]])
+                        {
+                            
+                        }
+                    }
+                }
+            }
+            
+            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01f]];
+        }
+    });
+}
 
 #pragma - mark - AVCaptureVideoDataOutputSampleBufferDelegate
 
@@ -1330,11 +1367,13 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         if (self.isPublish)
         {
             self.uploading = YES;
-            [self startBtnClick:self.startBtn];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self startBtnClick:self.startBtn];
+            });
         }
         else
         {
-            [_rtmpSocket receiveFrame:nil];
+            [self pullReceiveBuffer];
         }
     }
 }
