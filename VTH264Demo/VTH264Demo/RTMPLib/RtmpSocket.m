@@ -117,7 +117,7 @@ SAVC(mp4a);
         //这里改成observer主要考虑一直到发送出错情况下，可以继续发送
         [self addObserver:self forKeyPath:@"isSending" options:NSKeyValueObservingOptionNew context:nil];
         
-        RTMP_LogSetLevel(RTMP_LOGALL);
+        RTMP_LogSetLevel(RTMP_LOGERROR);
     }
     
     return self;
@@ -221,7 +221,6 @@ SAVC(mp4a);
     int len = 0;
     
     // buf 足够大，一次读可以读一个完整的帧
-    memset(buf, 0, RTMP_BUFFER_CACHE_SIZE);
     len = RTMP_Read(_rtmp, (char *)buf, RTMP_BUFFER_CACHE_SIZE);
     if (len > 0)
     {

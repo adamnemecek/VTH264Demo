@@ -375,9 +375,6 @@
     self.sampleBufferDisplayLayer.opaque = YES;
     
     self.useAacPlayer = NO;
-    
-    AudioStreamBasicDescription format;
-    self.audioQueue = [[AACAudioOutputQueue alloc] initWithFormat:format bufferSize:0 macgicCookie:nil];
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -676,9 +673,10 @@
     else
     {
         [self.pushRtmpBtn setTitle:@"RTMP推流" forState:UIControlStateNormal];
+        [self startBtnClick:self.startBtn];
         self.isPublish = NO;
         self.uploading = NO;
-        [_rtmpSocket stop];
+        [_rtmpSocket stop];        
     }
 }
 
@@ -1200,10 +1198,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 {
     dispatch_async(self.frameQueue, ^{
         
-        int numberOfChannels = 0;
-        int sampleRate = 0;
         RTMPFrame *frame;
-        
         while (self.pulling)
         {
             @autoreleasepool {
@@ -1213,50 +1208,11 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
                 {
                     if ([frame isKindOfClass:[RTMPVideoFrame class]])
                     {
-                        RTMPVideoFrame *videoFrame = (RTMPVideoFrame *)frame;
-                        NSData *ByteHeader = [NaluHelper getH264Header];
-                        if (videoFrame.sps.length > 0)
-                        {
-                            NSMutableData *h264Data = [[NSMutableData alloc] init];
-                            [h264Data appendData:ByteHeader];
-                            [h264Data appendData:[NSData dataWithBytes:[videoFrame.sps bytes] length:videoFrame.sps.length]];
-                            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
-                        }
-                        
-                        if (videoFrame.pps.length > 0)
-                        {
-                            NSMutableData *h264Data = [[NSMutableData alloc] init];
-                            [h264Data appendData:ByteHeader];
-                            [h264Data appendData:[NSData dataWithBytes:[videoFrame.pps bytes] length:videoFrame.pps.length]];
-                            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
-                        }
-                        
-                        if (videoFrame.data.length > 0)
-                        {
-                            NSMutableData *h264Data = [[NSMutableData alloc] init];
-                            [h264Data appendData:ByteHeader];
-                            [h264Data appendData:[NSData dataWithBytes:[videoFrame.data bytes] length:videoFrame.data.length]];
-                            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:videoFrame.timestamp];
-                        }
+                        [self processVideoFrame:(RTMPVideoFrame *)frame];
                     }
                     else if ([frame isKindOfClass:[RTMPAudioFrame class]])
                     {
-                        RTMPAudioFrame *audioFrame = (RTMPAudioFrame *)frame;
-                        if (audioFrame.numberOfChannels > 0)
-                        {
-                            numberOfChannels = audioFrame.numberOfChannels;
-                            sampleRate = audioFrame.sampleRate;
-                        }
-                        
-                        if (audioFrame.data.length > 0)
-                        {
-                            audioFrame.numberOfChannels = numberOfChannels;
-                            audioFrame.sampleRate = sampleRate;
-                            NSData *dataAdts = [AACHelper adtsData:numberOfChannels dataLength:frame.data.length frequencyInHz:[AACHelper rateIndexToSample:sampleRate]];
-                            NSMutableData *aacData = [[NSMutableData alloc] init];
-                            [aacData appendData:dataAdts];
-                            [aacData appendData:frame.data];
-                        }
+                        [self processAudioFrame:(RTMPAudioFrame *)frame];
                     }
                 }
             }
@@ -1269,6 +1225,85 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
             [_rtmpSocket stop];
         }
     });
+}
+
+- (void)processVideoFrame:(RTMPVideoFrame *)videoFrame
+{
+    dispatch_async(self.videoDataProcesQueue, ^{
+        
+        NSData *ByteHeader = [NaluHelper getH264Header];
+        if (videoFrame.sps.length > 0)
+        {
+            NSMutableData *h264Data = [[NSMutableData alloc] init];
+            [h264Data appendData:ByteHeader];
+            [h264Data appendData:[NSData dataWithBytes:[videoFrame.sps bytes] length:videoFrame.sps.length]];
+            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
+        }
+        
+        if (videoFrame.pps.length > 0)
+        {
+            NSMutableData *h264Data = [[NSMutableData alloc] init];
+            [h264Data appendData:ByteHeader];
+            [h264Data appendData:[NSData dataWithBytes:[videoFrame.pps bytes] length:videoFrame.pps.length]];
+            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
+        }
+        
+        if (videoFrame.data.length > 0)
+        {
+            NSMutableData *h264Data = [[NSMutableData alloc] init];
+            [h264Data appendData:ByteHeader];
+            [h264Data appendData:[NSData dataWithBytes:[videoFrame.data bytes] length:videoFrame.data.length]];
+            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:videoFrame.timestamp];
+        }
+    });
+}
+
+- (void)processAudioFrame:(RTMPAudioFrame *)audioFrame
+{
+    static int numberOfChannels = 0;
+    static int sampleRate = 0;
+
+    if (audioFrame.numberOfChannels > 0)
+    {
+        numberOfChannels = audioFrame.numberOfChannels;
+        sampleRate = audioFrame.sampleRate;
+        
+        dispatch_async(self.audioDataProcesQueue, ^{
+            
+            if (!self.audioQueue)
+            {
+                AudioStreamBasicDescription format;
+                memset(&format, 0, sizeof(format));
+                format.mSampleRate = [AACHelper rateIndexToSample:sampleRate];
+                format.mFormatID = kAudioFormatMPEG4AAC;
+                format.mFormatFlags = kMPEG4Object_AAC_LC;
+                format.mChannelsPerFrame = numberOfChannels;
+                format.mFramesPerPacket = 1024;
+                
+                self.audioQueue = [[AACAudioOutputQueue alloc] initWithFormat:format bufferSize:2000 macgicCookie:nil];
+            }
+        });
+    }
+    
+    if (audioFrame.data.length > 0)
+    {
+        audioFrame.numberOfChannels = numberOfChannels;
+        audioFrame.sampleRate = sampleRate;
+        
+        dispatch_async(self.audioDataProcesQueue, ^{
+            
+            if (self.audioQueue)
+            {
+                AudioStreamPacketDescription description;
+                memset(&description, 0, sizeof(AudioStreamPacketDescription));
+                description.mDataByteSize = 128;
+                description.mStartOffset = 0;
+                description.mVariableFramesInPacket = 0;
+                
+                [self.audioQueue playData:audioFrame.data packetCount:1 packetDescriptions:&description isEof:NO];
+            }
+        });
+    }
 }
 
 #pragma - mark - AVCaptureVideoDataOutputSampleBufferDelegate
