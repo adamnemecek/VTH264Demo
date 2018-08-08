@@ -21,5 +21,7 @@ typedef struct _AdtsUnit
 
 + (NSData *)adtsData:(NSInteger)channel dataLength:(NSInteger)dataLength frequencyInHz:(NSInteger)frequencyInHz;
 + (BOOL)readOneAtdsFromFormatAAC:(AdtsUnit *)adts data:(NSData *)data curPos:(NSUInteger *)curPos;
++ (NSInteger)sampleToRateIndex:(NSInteger)frequencyInHz;
++ (int)rateIndexToSample:(int)sampleRateIndex;
 
 @end

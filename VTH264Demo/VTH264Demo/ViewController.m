@@ -20,6 +20,7 @@
 #import "AACHelper.h"
 #import "AACAudioPlayer.h"
 #import "RtmpSocket.h"
+#import "AACAudioOutputQueue.h"
 
 #define h264outputWidth     800
 #define h264outputHeight    600
@@ -93,6 +94,7 @@
 @property (nonatomic, assign) UInt32 channelsPerFrame;
 @property (nonatomic, strong) AVPlayerViewController *avPlayerVC;
 @property (nonatomic, strong) AACAudioPlayer *aacPlayer;
+@property (nonatomic, strong) AACAudioOutputQueue *audioQueue;
 @property (nonatomic, assign) BOOL useAacPlayer;
 @property (nonatomic, strong) dispatch_queue_t audioDataProcesQueue;
 
@@ -373,6 +375,9 @@
     self.sampleBufferDisplayLayer.opaque = YES;
     
     self.useAacPlayer = NO;
+    
+    AudioStreamBasicDescription format;
+    self.audioQueue = [[AACAudioOutputQueue alloc] initWithFormat:format bufferSize:0 macgicCookie:nil];
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -656,13 +661,25 @@
     }
 }
 
-- (void)pushRtmpBtnClick:(id)sender
+- (void)pushRtmpBtnClick:(UIButton *)sender
 {
-    self.isPublish = YES;
-    NSURL *url = [NSURL URLWithString:self.pullTextField.text];
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
-    [_rtmpSocket setDelegate:self];
-    [_rtmpSocket start];
+    sender.selected = !sender.selected;
+    if (sender.selected == YES)
+    {
+        [self.pushRtmpBtn setTitle:@"停止推流" forState:UIControlStateNormal];
+        self.isPublish = YES;
+        NSURL *url = [NSURL URLWithString:self.pullTextField.text];
+        _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
+        [_rtmpSocket setDelegate:self];
+        [_rtmpSocket start];
+    }
+    else
+    {
+        [self.pushRtmpBtn setTitle:@"RTMP推流" forState:UIControlStateNormal];
+        self.isPublish = NO;
+        self.uploading = NO;
+        [_rtmpSocket stop];
+    }
 }
 
 - (void)pullRtmpBtnClick:(UIButton *)sender
@@ -670,7 +687,7 @@
     sender.selected = !sender.selected;
     if (sender.selected == YES)
     {
-        [self.pullRtmpBtn setTitle:@"停止推流" forState:UIControlStateNormal];
+        [self.pullRtmpBtn setTitle:@"停止拉流" forState:UIControlStateNormal];
         self.pulling = YES;
         self.isPublish = NO;
         NSURL *url = [NSURL URLWithString:self.pullTextField.text];
@@ -1014,7 +1031,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 
 #pragma - mark - Use AVSampleBufferDisplayLayer
 //把pixelBuffer包装成samplebuffer送给displayLayer
-- (void)dispatchPixelBuffer:(CVPixelBufferRef)pixelBuffer
+- (void)dispatchPixelBuffer:(CVPixelBufferRef)pixelBuffer timeStamp:(uint64_t)timeStamp
 {
     if (!pixelBuffer)
     {
@@ -1029,8 +1046,18 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         NSLog(@"frame0time = %@", @(self.frame0time));
     }
 
+    CMTime pts;
+    if (timeStamp > 0)
+    {
+        pts = CMTimeMake(timeStamp, 1000);
+    }
+    else
+    {
+        pts = CMTimeMakeWithSeconds(self.frame0time + (1.0 / H264_FPS) * self.decodeVideoFrameCount, 1000);
+    }
+    
     CMSampleTimingInfo timing = {
-        .presentationTimeStamp = CMTimeMakeWithSeconds(self.frame0time + (1.0 / H264_FPS) * self.decodeVideoFrameCount, 1000),
+        .presentationTimeStamp = pts,
         .duration = CMTimeMakeWithSeconds(1.0 / H264_FPS, 1000),
         .decodeTimeStamp = kCMTimeInvalid
     };
@@ -1173,7 +1200,10 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 {
     dispatch_async(self.frameQueue, ^{
         
+        int numberOfChannels = 0;
+        int sampleRate = 0;
         RTMPFrame *frame;
+        
         while (self.pulling)
         {
             @autoreleasepool {
@@ -1201,17 +1231,32 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
                             [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
                         }
                         
-                        NSMutableData *h264Data = [[NSMutableData alloc] init];
-                        [h264Data appendData:ByteHeader];
-                        [h264Data appendData:[NSData dataWithBytes:[videoFrame.data bytes] length:videoFrame.data.length]];
-                        [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:videoFrame.timestamp];
+                        if (videoFrame.data.length > 0)
+                        {
+                            NSMutableData *h264Data = [[NSMutableData alloc] init];
+                            [h264Data appendData:ByteHeader];
+                            [h264Data appendData:[NSData dataWithBytes:[videoFrame.data bytes] length:videoFrame.data.length]];
+                            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:videoFrame.timestamp];
+                        }
                     }
                     else if ([frame isKindOfClass:[RTMPAudioFrame class]])
                     {
-                        NSData *dataAdts = [AACHelper adtsData:self.channelsPerFrame dataLength:frame.data.length frequencyInHz:44100];
-                        NSMutableData *aacData = [[NSMutableData alloc] init];
-                        [aacData appendData:dataAdts];
-                        [aacData appendData:frame.data];
+                        RTMPAudioFrame *audioFrame = (RTMPAudioFrame *)frame;
+                        if (audioFrame.numberOfChannels > 0)
+                        {
+                            numberOfChannels = audioFrame.numberOfChannels;
+                            sampleRate = audioFrame.sampleRate;
+                        }
+                        
+                        if (audioFrame.data.length > 0)
+                        {
+                            audioFrame.numberOfChannels = numberOfChannels;
+                            audioFrame.sampleRate = sampleRate;
+                            NSData *dataAdts = [AACHelper adtsData:numberOfChannels dataLength:frame.data.length frequencyInHz:[AACHelper rateIndexToSample:sampleRate]];
+                            NSMutableData *aacData = [[NSMutableData alloc] init];
+                            [aacData appendData:dataAdts];
+                            [aacData appendData:frame.data];
+                        }
                     }
                 }
             }
@@ -1345,7 +1390,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         }
         else
         {
-            [self dispatchPixelBuffer:imageBuffer];
+            [self dispatchPixelBuffer:imageBuffer timeStamp:timeStamp];
         }
     }
 }
@@ -1373,13 +1418,8 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
             RTMPAudioFrame *audioFrame = [RTMPAudioFrame new];
             audioFrame.timestamp = timeStamp;
             audioFrame.data = data;
-            
-            NSInteger sampleRateIndex = 4; // 对应44100
-            NSUInteger numberOfChannels = self.channelsPerFrame;
-            char exeData[2];
-            exeData[0] = 0x10 | ((sampleRateIndex >> 1) & 0x7);
-            exeData[1] = ((sampleRateIndex & 0x1) << 7) | ((numberOfChannels & 0xF) << 3);
-            audioFrame.audioInfo = [NSData dataWithBytes:exeData length:2];
+            audioFrame.sampleRate = 4; // 对应44100
+            audioFrame.numberOfChannels = self.channelsPerFrame;
             
             [self pushSendBuffer:audioFrame];
         }

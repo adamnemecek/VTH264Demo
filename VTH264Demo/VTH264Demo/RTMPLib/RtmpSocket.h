@@ -41,7 +41,8 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
 
 @interface RTMPAudioFrame : RTMPFrame
 
-@property (nonatomic, strong) NSData *audioInfo;    /// flv打包中aac的header
+@property (nonatomic, assign) int numberOfChannels;
+@property (nonatomic, assign) int sampleRate;
 
 @end
 

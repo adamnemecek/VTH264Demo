@@ -117,7 +117,7 @@ SAVC(mp4a);
         //这里改成observer主要考虑一直到发送出错情况下，可以继续发送
         [self addObserver:self forKeyPath:@"isSending" options:NSKeyValueObservingOptionNew context:nil];
         
-        RTMP_LogSetLevel(RTMP_LOGWARNING);
+        RTMP_LogSetLevel(RTMP_LOGALL);
     }
     
     return self;
@@ -217,47 +217,75 @@ SAVC(mp4a);
     RTMPFrame *frame;
     unsigned char buf[RTMP_BUFFER_CACHE_SIZE] = {0};
     uint8_t m_packetType = 0;
+    int i = 0;
+    int len = 0;
     
     // buf 足够大，一次读可以读一个完整的帧
-    int len = RTMP_Read(_rtmp, (char *)buf, sizeof(buf));
+    memset(buf, 0, RTMP_BUFFER_CACHE_SIZE);
+    len = RTMP_Read(_rtmp, (char *)buf, RTMP_BUFFER_CACHE_SIZE);
     if (len > 0)
     {
-        m_packetType = buf[0];
+        // 读取到的第一帧是FLV头，基本不用解析，需要跳过这部分
+        if ((buf[0] == 'F') && (buf[1] == 'L') && (buf[2] == 'V'))
+        {
+            i = i + 13;
+        }
+        
+        m_packetType = buf[i];
         if (m_packetType == RTMP_PACKET_TYPE_AUDIO)
         {
             RTMPAudioFrame *audioFrame;
-            if ((buf[11] == 0xAF) && (buf[12] == 0x00))
+            if ((buf[i + 11] == 0xAF) && (buf[i + 12] == 0x00))
             {
-                audioFrame = [self receiveAudioHeader:buf + 13 len:len - 13 timeStamp:_rtmp->m_mediaStamp];
+                audioFrame = [self receiveAudioHeader:buf + i + 13 len:len - i - 13 timeStamp:_rtmp->m_mediaStamp];
+                frame = audioFrame;
             }
-            else if ((buf[11] == 0xAF) && (buf[12] == 0x01))
+            else if ((buf[i + 11] == 0xAF) && (buf[i + 12] == 0x01))
             {
-                audioFrame = [self receiveAudio:buf + 13 len:len - 13 timeStamp:_rtmp->m_mediaStamp];
+                audioFrame = [self receiveAudio:buf + i + 13 len:len - i - 13 timeStamp:_rtmp->m_mediaStamp];
+                frame = audioFrame;
             }
-            
-            frame = audioFrame;
         }
         else if (m_packetType == RTMP_PACKET_TYPE_VIDEO)
         {
             RTMPVideoFrame *videoFrame;
-            if ((buf[11] == 0x17) && (buf[12] == 0x00))
+            if ((buf[i + 11] == 0x17) && (buf[i + 12] == 0x00))
             {
-                videoFrame = [self receiveVideoHeader:buf + 13 len:len - 13 timeStamp:_rtmp->m_mediaStamp];
+                videoFrame = [self receiveVideoHeader:buf + i + 13 len:len - i - 13 timeStamp:_rtmp->m_mediaStamp];
+                frame = videoFrame;
             }
-            else if ((buf[11] == 0x17) && (buf[12] == 0x01))
+            else if ((buf[i + 11] == 0x17) && (buf[i + 12] == 0x01))
             {
-                videoFrame = [self receiveVideo:buf + 12 len:len - 12 isKeyFrame:YES timeStamp:_rtmp->m_mediaStamp];
+                videoFrame = [self receiveVideo:buf + i + 12 len:len - i - 12 isKeyFrame:YES timeStamp:_rtmp->m_mediaStamp];
+                frame = videoFrame;
             }
-            else if ((buf[11] == 0x27) && (buf[12] == 0x01))
+            else if ((buf[i + 11] == 0x27) && (buf[i + 12] == 0x01))
             {
-                videoFrame = [self receiveVideo:buf + 12 len:len - 12 isKeyFrame:NO timeStamp:_rtmp->m_mediaStamp];
+                videoFrame = [self receiveVideo:buf + i + 12 len:len - i - 12 isKeyFrame:NO timeStamp:_rtmp->m_mediaStamp];
+                frame = videoFrame;
             }
-            
-            frame = videoFrame;
+        }
+        else if (m_packetType == RTMP_PACKET_TYPE_INFO)
+        {
+            // 有可能第一帧 info 后面还会携带一帧 audio header 带过来
+            int infoLen = (buf[i + 1] << 16) + (buf[i + 2] << 8) + (buf[i + 3]);
+            i = i + infoLen + 10;
+            int j = i;
+            while (j < len)
+            {
+                if ((buf[j] == 0xAF) && (buf[i + 1] == 0x00))
+                {
+                    RTMPAudioFrame *audioFrame = [self receiveAudioHeader:buf + j + 2 len:2 timeStamp:_rtmp->m_mediaStamp];
+                    frame = audioFrame;
+                    break;
+                }
+                j++;
+            }
         }
         else
         {
-            NSLog(@"receive unknow frame type = %@, len = %@", @(m_packetType), @(len));
+            NSData *data = [NSData dataWithBytes:buf length:len];
+            NSLog(@"receive unknow frame %@, len = %@", data, @(data.length));
         }
     }
     
@@ -394,7 +422,8 @@ Failed:
 - (RTMPAudioFrame *)receiveAudioHeader:(unsigned char *)buf len:(int)len timeStamp:(uint32_t)timeStamp
 {
     RTMPAudioFrame *audioFrame = [[RTMPAudioFrame alloc] init];
-    audioFrame.data = [NSData dataWithBytes:buf length:len];
+    audioFrame.sampleRate = ((buf[0] & 0x0F) << 1) + ((buf[1] & 0x80) >> 7);
+    audioFrame.numberOfChannels = buf[1] >> 3;
     audioFrame.timestamp = timeStamp;
 
     return audioFrame;
@@ -405,6 +434,8 @@ Failed:
     RTMPAudioFrame *audioFrame = [[RTMPAudioFrame alloc] init];
     audioFrame.data = [NSData dataWithBytes:buf length:len];
     audioFrame.timestamp = timeStamp;
+    audioFrame.sampleRate = 0;
+    audioFrame.numberOfChannels = 0;
     
     return audioFrame;
 }
@@ -479,7 +510,7 @@ Failed:
                 if (!weakSelf.sendAudioHead)
                 {
                     weakSelf.sendAudioHead = YES;
-                    if (!((RTMPAudioFrame *)frame).audioInfo)
+                    if (!(((RTMPAudioFrame *)frame).numberOfChannels))
                     {
                         weakSelf.isSending = NO;
                         return;
@@ -558,14 +589,18 @@ Failed:
 
 - (void)sendAudioHeader:(RTMPAudioFrame *)audioFrame
 {
-    NSInteger rtmpLength = audioFrame.audioInfo.length + 2;     /*spec data长度,一般是2*/
+    NSInteger rtmpLength = 2 + 2;     /*spec data长度,一般是2*/
     unsigned char *body = (unsigned char *)malloc(rtmpLength);
     memset(body, 0, rtmpLength);
     
     /*AF 00 + AAC RAW data*/
     body[0] = 0xAF;
     body[1] = 0x00;
-    memcpy(&body[2], audioFrame.audioInfo.bytes, audioFrame.audioInfo.length);          /*spec_buf是AAC sequence header数据*/
+    
+    /*spec_buf是AAC sequence header数据*/
+    body[2] = 0x10 | ((audioFrame.sampleRate >> 1) & 0x7);
+    body[3] = ((audioFrame.sampleRate & 0x1) << 7) | ((audioFrame.numberOfChannels & 0xF) << 3);
+
     [self sendPacket:RTMP_PACKET_TYPE_AUDIO data:body size:rtmpLength nTimestamp:0];
     free(body);
 }
