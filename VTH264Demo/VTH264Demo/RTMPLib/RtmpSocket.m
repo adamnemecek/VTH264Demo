@@ -117,7 +117,7 @@ SAVC(mp4a);
         //这里改成observer主要考虑一直到发送出错情况下，可以继续发送
         [self addObserver:self forKeyPath:@"isSending" options:NSKeyValueObservingOptionNew context:nil];
         
-        RTMP_LogSetLevel(RTMP_LOGALL);
+        RTMP_LogSetLevel(RTMP_LOGWARNING);
     }
     
     return self;
@@ -225,8 +225,6 @@ SAVC(mp4a);
         m_packetType = buf[0];
         if (m_packetType == RTMP_PACKET_TYPE_AUDIO)
         {
-            NSLog(@"receive audio frame len = %@", @(len));
-            
             RTMPAudioFrame *audioFrame;
             if ((buf[11] == 0xAF) && (buf[12] == 0x00))
             {
@@ -241,8 +239,6 @@ SAVC(mp4a);
         }
         else if (m_packetType == RTMP_PACKET_TYPE_VIDEO)
         {
-            NSLog(@"receive video frame len = %@", @(len));
-            
             RTMPVideoFrame *videoFrame;
             if ((buf[11] == 0x17) && (buf[12] == 0x00))
             {

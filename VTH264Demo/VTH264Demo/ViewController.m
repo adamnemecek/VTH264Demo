@@ -534,7 +534,7 @@
             [h264Data appendData:ByteHeader];
             [h264Data appendData:[NSData dataWithBytes:naluUnit.data length:naluUnit.size]];
 
-            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
         }
     });
 }
@@ -665,14 +665,43 @@
     [_rtmpSocket start];
 }
 
-- (void)pullRtmpBtnClick:(id)sender
+- (void)pullRtmpBtnClick:(UIButton *)sender
 {
-    self.pulling = YES;
-    self.isPublish = NO;
-    NSURL *url = [NSURL URLWithString:self.pullTextField.text];
-    _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
-    [_rtmpSocket setDelegate:self];
-    [_rtmpSocket start];
+    sender.selected = !sender.selected;
+    if (sender.selected == YES)
+    {
+        [self.pullRtmpBtn setTitle:@"停止推流" forState:UIControlStateNormal];
+        self.pulling = YES;
+        self.isPublish = NO;
+        NSURL *url = [NSURL URLWithString:self.pullTextField.text];
+        _rtmpSocket = [[RTMPSocket alloc] initWithURL:url isPublish:self.isPublish];
+        [_rtmpSocket setDelegate:self];
+        [_rtmpSocket start];
+        
+        if (self.useOpenGLPlayLayer)
+        {
+            [self.view.layer addSublayer:self.openGLPlayLayer];
+        }
+        else
+        {
+            [self.view.layer addSublayer:self.sampleBufferDisplayLayer];
+        }
+    }
+    else
+    {
+        [self.pullRtmpBtn setTitle:@"RTMP拉流" forState:UIControlStateNormal];
+        self.pulling = NO;
+        self.isPublish = NO;
+        
+        if (self.useOpenGLPlayLayer)
+        {
+            [self.openGLPlayLayer removeFromSuperlayer];
+        }
+        else
+        {
+            [self.sampleBufferDisplayLayer removeFromSuperlayer];
+        }
+    }
 }
 
 #pragma - mark - Audio
@@ -1154,16 +1183,45 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
                 {
                     if ([frame isKindOfClass:[RTMPVideoFrame class]])
                     {
+                        RTMPVideoFrame *videoFrame = (RTMPVideoFrame *)frame;
+                        NSData *ByteHeader = [NaluHelper getH264Header];
+                        if (videoFrame.sps.length > 0)
+                        {
+                            NSMutableData *h264Data = [[NSMutableData alloc] init];
+                            [h264Data appendData:ByteHeader];
+                            [h264Data appendData:[NSData dataWithBytes:[videoFrame.sps bytes] length:videoFrame.sps.length]];
+                            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
+                        }
                         
+                        if (videoFrame.pps.length > 0)
+                        {
+                            NSMutableData *h264Data = [[NSMutableData alloc] init];
+                            [h264Data appendData:ByteHeader];
+                            [h264Data appendData:[NSData dataWithBytes:[videoFrame.pps bytes] length:videoFrame.pps.length]];
+                            [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
+                        }
+                        
+                        NSMutableData *h264Data = [[NSMutableData alloc] init];
+                        [h264Data appendData:ByteHeader];
+                        [h264Data appendData:[NSData dataWithBytes:[videoFrame.data bytes] length:videoFrame.data.length]];
+                        [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:videoFrame.timestamp];
                     }
                     else if ([frame isKindOfClass:[RTMPAudioFrame class]])
                     {
-                        
+                        NSData *dataAdts = [AACHelper adtsData:self.channelsPerFrame dataLength:frame.data.length frequencyInHz:44100];
+                        NSMutableData *aacData = [[NSMutableData alloc] init];
+                        [aacData appendData:dataAdts];
+                        [aacData appendData:frame.data];
                     }
                 }
             }
             
             [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01f]];
+        }
+        
+        if (self.pulling == NO)
+        {
+            [_rtmpSocket stop];
         }
     });
 }
@@ -1220,7 +1278,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [h264Data appendData:ByteHeader];
     [h264Data appendData:sps];
     [self.videoFileHandle writeData:h264Data];
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
     
     //发pps
     [h264Data resetBytesInRange:NSMakeRange(0, [h264Data length])];
@@ -1228,7 +1286,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
     [h264Data appendData:ByteHeader];
     [h264Data appendData:pps];
     [self.videoFileHandle writeData:h264Data];
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
 }
 
 - (void)getEncodedVideoData:(NSData *)data sps:(NSData *)sps pps:(NSData *)pps isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint64_t)timeStamp
@@ -1267,17 +1325,17 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
         }
     }
     
-    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length];
+    [self.h264Decoder startDecode:(uint8_t *)[h264Data bytes] withSize:(uint32_t)h264Data.length timeStamp:0];
 }
     
 #pragma - mark - H264HwDecoderDelegate
 
-- (void)getDecodedVideoData:(CVImageBufferRef)imageBuffer
+- (void)getDecodedVideoData:(CVImageBufferRef)imageBuffer timeStamp:(uint64_t)timeStamp
 {
     CGSize bufferSize = CVImageBufferGetDisplaySize(imageBuffer);
     
     self.decodeVideoFrameCount++;
-    NSLog(@"getDecodedData decodeVideoFrameCount %@, bufferWidth %@, bufferHeight %@", @(self.decodeVideoFrameCount), @(bufferSize.width), @(bufferSize.height));
+    NSLog(@"getDecodedData decodeVideoFrameCount %@, bufferWidth %@, bufferHeight %@, timeStamp %@", @(self.decodeVideoFrameCount), @(bufferSize.width), @(bufferSize.height), @(timeStamp));
     
     if (imageBuffer)
     {

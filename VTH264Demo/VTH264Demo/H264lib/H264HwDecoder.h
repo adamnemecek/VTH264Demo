@@ -12,7 +12,7 @@
 
 @protocol H264HwDecoderDelegate <NSObject>
 
-- (void)getDecodedVideoData:(CVImageBufferRef)imageBuffer;
+- (void)getDecodedVideoData:(CVImageBufferRef)imageBuffer timeStamp:(uint64_t)timeStamp;
 
 @end
 
@@ -23,7 +23,7 @@
 @property (nonatomic, assign) BOOL enableAsynDecompression;
 
 - (void)initEncode:(int)width height:(int)height;
-- (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize;
+- (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize timeStamp:(uint64_t)timeStamp;
 - (void)endDecoder;
 - (BOOL)resetH264Decoder;
 

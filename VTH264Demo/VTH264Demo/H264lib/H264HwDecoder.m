@@ -72,7 +72,7 @@
     return YES;
 }
 
-- (CVPixelBufferRef)decode:(uint8_t *)frame withSize:(uint32_t)frameSize
+- (CVPixelBufferRef)decode:(uint8_t *)frame withSize:(uint32_t)frameSize timeStamp:(uint64_t)timeStamp
 {
     CVPixelBufferRef outputPixelBuffer = NULL;
     
@@ -94,7 +94,10 @@
             
             VTDecodeInfoFlags flagOut = 0;
             
-            decodeStatus = VTDecompressionSessionDecodeFrame(deocdingSession, sampleBuffer, flags, &outputPixelBuffer, &flagOut);
+            //传递解码之前的网络传递过来的视频时间戳
+            NSNumber *timeNumber = @(timeStamp);
+
+            decodeStatus = VTDecompressionSessionDecodeFrame(deocdingSession, sampleBuffer, flags, (__bridge_retained void *)timeNumber, &flagOut);
             if (decodeStatus == kVTInvalidSessionErr)
             {
                 NSLog(@"VT: Invalid session, reset decoder session");
@@ -129,7 +132,7 @@
 }
 
 //此处解码的帧需要包含 00000001 start code
-- (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize
+- (void)startDecode:(uint8_t *)frame withSize:(uint32_t)frameSize timeStamp:(uint64_t)timeStamp
 {
     int nalu_type = (frame[4] & 0x1F);
     uint32_t nalSize = (uint32_t)(frameSize - 4);
@@ -147,7 +150,7 @@
             NSLog(@"nalu_type:%d Nal type is IDR frame", nalu_type);  //关键帧
             if ([self initH264Decoder])
             {
-                [self decode:frame withSize:frameSize];
+                [self decode:frame withSize:frameSize timeStamp:timeStamp];
             }
             break;
         }
@@ -175,7 +178,7 @@
             NSLog(@"nalu_type:%d is B/P frame", nalu_type);//其他帧
             if ([self initH264Decoder])
             {
-                [self decode:frame withSize:frameSize];
+                [self decode:frame withSize:frameSize timeStamp:timeStamp];
             }
             break;
         }   
@@ -214,8 +217,7 @@ void didDecompressH264(void *decompressionOutputRefCon, void *sourceFrameRefCon,
         return;
     }
     
-    CVPixelBufferRef *outputPixelBuffer = (CVPixelBufferRef *)sourceFrameRefCon;
-    *outputPixelBuffer = CVPixelBufferRetain(pixelBuffer);
+    uint64_t timeStamp = [((__bridge_transfer NSNumber *)sourceFrameRefCon) longLongValue];
     
     CMTime pts = presentationTimeStamp;
     CMTime duration = presentationDuration;
@@ -225,11 +227,12 @@ void didDecompressH264(void *decompressionOutputRefCon, void *sourceFrameRefCon,
     NSLog(@"didDecompressH264 pts value %@, pts timescale %@, duration value %@, duration timescale %@, bufferWidth %@, bufferHeight %@", @(pts.value), @(pts.timescale), @(duration.value), @(duration.timescale), @(width), @(height));
     
     H264HwDecoder *decoder = (__bridge H264HwDecoder *)decompressionOutputRefCon;
-    if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedVideoData:)])
+    if (decoder.delegate && [decoder.delegate respondsToSelector:@selector(getDecodedVideoData:timeStamp:)])
     {
+        CFRetain(pixelBuffer);
         dispatch_async(decoder.dataCallbackQueue, ^{
             
-            [decoder.delegate getDecodedVideoData:pixelBuffer];
+            [decoder.delegate getDecodedVideoData:pixelBuffer timeStamp:timeStamp];
         });
     }
 }
