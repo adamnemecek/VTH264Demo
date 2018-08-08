@@ -1144,28 +1144,21 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
 {
     dispatch_async(self.frameQueue, ^{
         
-        NSMutableArray *frameArray = [NSMutableArray array];
-        NSArray *frameArr;
+        RTMPFrame *frame;
         while (self.pulling)
         {
             @autoreleasepool {
                 
-                frameArr = [_rtmpSocket receiveFrame];
-                if (frameArr.count > 0)
+                frame = [_rtmpSocket receiveFrame];
+                if (frame)
                 {
-                    NSLog(@"frame count %@", @(frameArr.count));
-                    [frameArray addObjectsFromArray:frameArr];
-                    
-                    for (RTMPFrame *frame in frameArray)
+                    if ([frame isKindOfClass:[RTMPVideoFrame class]])
                     {
-                        if ([frame isKindOfClass:[RTMPVideoFrame class]])
-                        {
-                            
-                        }
-                        else if ([frame isKindOfClass:[RTMPAudioFrame class]])
-                        {
-                            
-                        }
+                        
+                    }
+                    else if ([frame isKindOfClass:[RTMPAudioFrame class]])
+                    {
+                        
                     }
                 }
             }

@@ -36,7 +36,6 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
 
 @property (nonatomic, assign) uint64_t timestamp;
 @property (nonatomic, strong) NSData *data;
-@property (nonatomic, strong) NSData *header;   ///< flv或者rtmp包头
 
 @end
 
@@ -71,7 +70,7 @@ typedef NS_ENUM (NSUInteger, RTMPErrorCode) {
 - (void)start;
 - (void)stop;
 - (void)sendFrame:(nullable RTMPFrame *)frame;
-- (NSArray <RTMPFrame *> *)receiveFrame;
+- (RTMPFrame *)receiveFrame;
 - (void)setDelegate:(nullable id <RTMPSocketDelegate>)delegate;
 
 @end

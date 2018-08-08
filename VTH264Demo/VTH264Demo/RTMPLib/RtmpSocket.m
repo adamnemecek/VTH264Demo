@@ -123,6 +123,11 @@ SAVC(mp4a);
     return self;
 }
 
+- (void)setDelegate:(id<RTMPSocketDelegate>)delegate
+{
+    _delegate = delegate;
+}
+
 - (void)dealloc
 {
     [self removeObserver:self forKeyPath:@"isSending"];
@@ -180,6 +185,18 @@ SAVC(mp4a);
     [self clean];
 }
 
+- (void)clean
+{
+    _isConnecting = NO;
+    _isReconnecting = NO;
+    _isSending = NO;
+    _isConnected = NO;
+    _sendAudioHead = NO;
+    _sendVideoHead = NO;
+    [self.buffer removeAllObjects];
+    self.retryTimes4netWorkBreaken = 0;
+}
+
 - (void)sendFrame:(RTMPFrame *)frame
 {
     if (!frame)
@@ -195,101 +212,60 @@ SAVC(mp4a);
     }
 }
 
-- (NSArray <RTMPFrame *> *)receiveFrame
+- (RTMPFrame *)receiveFrame
 {
-    NSMutableArray *frameArray = [NSMutableArray array];
-    char buf[RTMP_BUFFER_CACHE_SIZE] = {0};
+    RTMPFrame *frame;
+    unsigned char buf[RTMP_BUFFER_CACHE_SIZE] = {0};
+    uint8_t m_packetType = 0;
+    
     // buf 足够大，一次读可以读一个完整的帧
-    int ret = RTMP_Read(_rtmp, buf, sizeof(buf));
-    if (ret > 0)
+    int len = RTMP_Read(_rtmp, (char *)buf, sizeof(buf));
+    if (len > 0)
     {
-        NSLog(@"receiveFrame len = %@", @(ret));
+        m_packetType = buf[0];
+        if (m_packetType == RTMP_PACKET_TYPE_AUDIO)
+        {
+            NSLog(@"receive audio frame len = %@", @(len));
+            
+            RTMPAudioFrame *audioFrame;
+            if ((buf[11] == 0xAF) && (buf[12] == 0x00))
+            {
+                audioFrame = [self receiveAudioHeader:buf + 13 len:len - 13 timeStamp:_rtmp->m_mediaStamp];
+            }
+            else if ((buf[11] == 0xAF) && (buf[12] == 0x01))
+            {
+                audioFrame = [self receiveAudio:buf + 13 len:len - 13 timeStamp:_rtmp->m_mediaStamp];
+            }
+            
+            frame = audioFrame;
+        }
+        else if (m_packetType == RTMP_PACKET_TYPE_VIDEO)
+        {
+            NSLog(@"receive video frame len = %@", @(len));
+            
+            RTMPVideoFrame *videoFrame;
+            if ((buf[11] == 0x17) && (buf[12] == 0x00))
+            {
+                videoFrame = [self receiveVideoHeader:buf + 13 len:len - 13 timeStamp:_rtmp->m_mediaStamp];
+            }
+            else if ((buf[11] == 0x17) && (buf[12] == 0x01))
+            {
+                videoFrame = [self receiveVideo:buf + 12 len:len - 12 isKeyFrame:YES timeStamp:_rtmp->m_mediaStamp];
+            }
+            else if ((buf[11] == 0x27) && (buf[12] == 0x01))
+            {
+                videoFrame = [self receiveVideo:buf + 12 len:len - 12 isKeyFrame:NO timeStamp:_rtmp->m_mediaStamp];
+            }
+            
+            frame = videoFrame;
+        }
+        else
+        {
+            NSLog(@"receive unknow frame type = %@, len = %@", @(m_packetType), @(len));
+        }
     }
     
-    return frameArray;
-}
-
-- (void)setDelegate:(id<RTMPSocketDelegate>)delegate
-{
-    _delegate = delegate;
-}
-
-#pragma - mark - CustomMethod
-
-- (void)sendFrame
-{
-    __weak typeof(self) weakSelf = self;
-    
-     dispatch_async(self.rtmpSendQueue, ^{
-
-        if (!weakSelf.isSending && weakSelf.buffer.count > 0)
-        {
-            weakSelf.isSending = YES;
-
-            if (!weakSelf.isConnected || weakSelf.isReconnecting || weakSelf.isConnecting || !_rtmp)
-            {
-                weakSelf.isSending = NO;
-                return;
-            }
-
-            // 调用发送接口
-            RTMPFrame *frame = [weakSelf.buffer firstObject];
-            [weakSelf.buffer removeObjectAtIndex:0];
-            
-            if ([frame isKindOfClass:[RTMPVideoFrame class]])
-            {
-                if (!weakSelf.sendVideoHead)
-                {
-                    weakSelf.sendVideoHead = YES;
-                    if (!((RTMPVideoFrame *)frame).sps || !((RTMPVideoFrame *)frame).pps)
-                    {
-                        weakSelf.isSending = NO;
-                        return;
-                    }
-                    [weakSelf sendVideoHeader:(RTMPVideoFrame *)frame];
-                }
-                else
-                {
-                    [weakSelf sendVideo:(RTMPVideoFrame *)frame];
-                }
-            }
-            else
-            {
-                if (!weakSelf.sendAudioHead)
-                {
-                    weakSelf.sendAudioHead = YES;
-                    if (!((RTMPAudioFrame *)frame).audioInfo)
-                    {
-                        weakSelf.isSending = NO;
-                        return;
-                    }
-                    [weakSelf sendAudioHeader:(RTMPAudioFrame *)frame];
-                }
-                else
-                {
-                    [weakSelf sendAudio:frame];
-                }
-            }
-
-            //修改发送状态
-            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                //这里只为了不循环调用sendFrame方法 调用栈是保证先出栈再进栈
-                weakSelf.isSending = NO;
-            });
-        }
-    });
-}
-
-- (void)clean
-{
-    _isConnecting = NO;
-    _isReconnecting = NO;
-    _isSending = NO;
-    _isConnected = NO;
-    _sendAudioHead = NO;
-    _sendVideoHead = NO;
-    [self.buffer removeAllObjects];
-    self.retryTimes4netWorkBreaken = 0;
+    return frame;
 }
 
 - (NSInteger)RTMP264_Connect:(char *)push_url
@@ -351,7 +327,183 @@ Failed:
     return -1;
 }
 
+// 断线重连
+- (void)reconnect
+{
+    dispatch_async(self.rtmpSendQueue, ^{
+        
+        if (self.retryTimes4netWorkBreaken++ < self.reconnectCount && !self.isReconnecting)
+        {
+            self.isConnected = NO;
+            self.isConnecting = NO;
+            self.isReconnecting = YES;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self performSelector:@selector(_reconnect) withObject:nil afterDelay:self.reconnectInterval];
+            });
+        }
+        else if (self.retryTimes4netWorkBreaken >= self.reconnectCount)
+        {
+            if (self.delegate && [self.delegate respondsToSelector:@selector(socketStatus:status:)])
+            {
+                [self.delegate socketStatus:self status:RTMPSocketError];
+            }
+            if (self.delegate && [self.delegate respondsToSelector:@selector(socketDidError:errorCode:)])
+            {
+                [self.delegate socketDidError:self errorCode:RTMPError_ReConnectTimeOut];
+            }
+        }
+    });
+}
+
+- (void)_reconnect
+{
+    [NSObject cancelPreviousPerformRequestsWithTarget:self];
+    
+    _isReconnecting = NO;
+    if (_isConnected)
+    {
+        return;
+    }
+    
+    _isReconnecting = NO;
+    if (_isConnected)
+    {
+        return;
+    }
+    if (_rtmp != NULL)
+    {
+        RTMP_Close(_rtmp);
+        RTMP_Free(_rtmp);
+        _rtmp = NULL;
+    }
+    _sendAudioHead = NO;
+    _sendVideoHead = NO;
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(socketStatus:status:)])
+    {
+        [self.delegate socketStatus:self status:RTMPSocketRefresh];
+    }
+    
+    if (_rtmp != NULL)
+    {
+        RTMP_Close(_rtmp);
+        RTMP_Free(_rtmp);
+    }
+    
+    [self RTMP264_Connect:(char *)[_url.absoluteString cStringUsingEncoding:NSASCIIStringEncoding]];
+}
+
+#pragma - mark - Rtmp Receive
+
+- (RTMPAudioFrame *)receiveAudioHeader:(unsigned char *)buf len:(int)len timeStamp:(uint32_t)timeStamp
+{
+    RTMPAudioFrame *audioFrame = [[RTMPAudioFrame alloc] init];
+    audioFrame.data = [NSData dataWithBytes:buf length:len];
+    audioFrame.timestamp = timeStamp;
+
+    return audioFrame;
+}
+
+- (RTMPAudioFrame *)receiveAudio:(unsigned char *)buf len:(int)len timeStamp:(uint32_t)timeStamp
+{
+    RTMPAudioFrame *audioFrame = [[RTMPAudioFrame alloc] init];
+    audioFrame.data = [NSData dataWithBytes:buf length:len];
+    audioFrame.timestamp = timeStamp;
+    
+    return audioFrame;
+}
+
+- (RTMPVideoFrame *)receiveVideoHeader:(unsigned char *)buf len:(int)len timeStamp:(uint32_t)timeStamp
+{
+    RTMPVideoFrame *videoFrame = [[RTMPVideoFrame alloc] init];
+    videoFrame.timestamp = timeStamp;
+    
+    int spslen = (buf[9] << 8) + buf[10];
+    videoFrame.sps = [NSData dataWithBytes:buf + 9 + 2 length:spslen];
+    
+    int ppslen = (buf[9 + 2 + spslen + 1] << 8) + buf[9 + 2 + spslen + 2];
+    videoFrame.pps = [NSData dataWithBytes:buf + 9 + 2 + spslen + 1 + 2 length:ppslen];
+    
+    return videoFrame;
+}
+
+- (RTMPVideoFrame *)receiveVideo:(unsigned char *)buf len:(int)len isKeyFrame:(BOOL)isKeyFrame timeStamp:(uint32_t)timeStamp
+{
+    RTMPVideoFrame *videoFrame = [[RTMPVideoFrame alloc] init];
+    videoFrame.timestamp = timeStamp;
+    videoFrame.isKeyFrame = isKeyFrame;
+    
+    int datalen = (buf[4] << 24) + (buf[5] << 16) + (buf[6] << 8) + buf[7];
+    videoFrame.data = [NSData dataWithBytes:buf + 4 + 4 length:datalen];
+    
+    return videoFrame;
+}
+
 #pragma - mark - Rtmp Send
+
+- (void)sendFrame
+{
+    __weak typeof(self) weakSelf = self;
+    
+    dispatch_async(self.rtmpSendQueue, ^{
+        
+        if (!weakSelf.isSending && weakSelf.buffer.count > 0)
+        {
+            weakSelf.isSending = YES;
+            
+            if (!weakSelf.isConnected || weakSelf.isReconnecting || weakSelf.isConnecting || !_rtmp)
+            {
+                weakSelf.isSending = NO;
+                return;
+            }
+            
+            // 调用发送接口
+            RTMPFrame *frame = [weakSelf.buffer firstObject];
+            [weakSelf.buffer removeObjectAtIndex:0];
+            
+            if ([frame isKindOfClass:[RTMPVideoFrame class]])
+            {
+                if (!weakSelf.sendVideoHead)
+                {
+                    weakSelf.sendVideoHead = YES;
+                    if (!((RTMPVideoFrame *)frame).sps || !((RTMPVideoFrame *)frame).pps)
+                    {
+                        weakSelf.isSending = NO;
+                        return;
+                    }
+                    [weakSelf sendVideoHeader:(RTMPVideoFrame *)frame];
+                }
+                else
+                {
+                    [weakSelf sendVideo:(RTMPVideoFrame *)frame];
+                }
+            }
+            else
+            {
+                if (!weakSelf.sendAudioHead)
+                {
+                    weakSelf.sendAudioHead = YES;
+                    if (!((RTMPAudioFrame *)frame).audioInfo)
+                    {
+                        weakSelf.isSending = NO;
+                        return;
+                    }
+                    [weakSelf sendAudioHeader:(RTMPAudioFrame *)frame];
+                }
+                else
+                {
+                    [weakSelf sendAudio:frame];
+                }
+            }
+            
+            //修改发送状态
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                //这里只为了不循环调用sendFrame方法 调用栈是保证先出栈再进栈
+                weakSelf.isSending = NO;
+            });
+        }
+    });
+}
 
 - (void)sendMetaData
 {
@@ -406,6 +558,34 @@ Failed:
     {
         return;
     }
+}
+
+- (void)sendAudioHeader:(RTMPAudioFrame *)audioFrame
+{
+    NSInteger rtmpLength = audioFrame.audioInfo.length + 2;     /*spec data长度,一般是2*/
+    unsigned char *body = (unsigned char *)malloc(rtmpLength);
+    memset(body, 0, rtmpLength);
+    
+    /*AF 00 + AAC RAW data*/
+    body[0] = 0xAF;
+    body[1] = 0x00;
+    memcpy(&body[2], audioFrame.audioInfo.bytes, audioFrame.audioInfo.length);          /*spec_buf是AAC sequence header数据*/
+    [self sendPacket:RTMP_PACKET_TYPE_AUDIO data:body size:rtmpLength nTimestamp:0];
+    free(body);
+}
+
+- (void)sendAudio:(RTMPFrame *)frame
+{
+    NSInteger rtmpLength = frame.data.length + 2;    /*spec data长度,一般是2*/
+    unsigned char *body = (unsigned char *)malloc(rtmpLength);
+    memset(body, 0, rtmpLength);
+    
+    /*AF 01 + AAC RAW data*/
+    body[0] = 0xAF;
+    body[1] = 0x01;
+    memcpy(&body[2], frame.data.bytes, frame.data.length);
+    [self sendPacket:RTMP_PACKET_TYPE_AUDIO data:body size:rtmpLength nTimestamp:frame.timestamp];
+    free(body);
 }
 
 - (void)sendVideoHeader:(RTMPVideoFrame *)videoFrame
@@ -515,100 +695,6 @@ Failed:
         return success;
     }
     return -1;
-}
-
-- (void)sendAudioHeader:(RTMPAudioFrame *)audioFrame
-{
-    NSInteger rtmpLength = audioFrame.audioInfo.length + 2;     /*spec data长度,一般是2*/
-    unsigned char *body = (unsigned char *)malloc(rtmpLength);
-    memset(body, 0, rtmpLength);
-
-    /*AF 00 + AAC RAW data*/
-    body[0] = 0xAF;
-    body[1] = 0x00;
-    memcpy(&body[2], audioFrame.audioInfo.bytes, audioFrame.audioInfo.length);          /*spec_buf是AAC sequence header数据*/
-    [self sendPacket:RTMP_PACKET_TYPE_AUDIO data:body size:rtmpLength nTimestamp:0];
-    free(body);
-}
-
-- (void)sendAudio:(RTMPFrame *)frame
-{
-    NSInteger rtmpLength = frame.data.length + 2;    /*spec data长度,一般是2*/
-    unsigned char *body = (unsigned char *)malloc(rtmpLength);
-    memset(body, 0, rtmpLength);
-
-    /*AF 01 + AAC RAW data*/
-    body[0] = 0xAF;
-    body[1] = 0x01;
-    memcpy(&body[2], frame.data.bytes, frame.data.length);
-    [self sendPacket:RTMP_PACKET_TYPE_AUDIO data:body size:rtmpLength nTimestamp:frame.timestamp];
-    free(body);
-}
-
-// 断线重连
-- (void)reconnect
-{
-    dispatch_async(self.rtmpSendQueue, ^{
-        
-        if (self.retryTimes4netWorkBreaken++ < self.reconnectCount && !self.isReconnecting)
-        {
-            self.isConnected = NO;
-            self.isConnecting = NO;
-            self.isReconnecting = YES;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                 [self performSelector:@selector(_reconnect) withObject:nil afterDelay:self.reconnectInterval];
-            });
-        }
-        else if (self.retryTimes4netWorkBreaken >= self.reconnectCount)
-        {
-            if (self.delegate && [self.delegate respondsToSelector:@selector(socketStatus:status:)])
-            {
-                [self.delegate socketStatus:self status:RTMPSocketError];
-            }
-            if (self.delegate && [self.delegate respondsToSelector:@selector(socketDidError:errorCode:)])
-            {
-                [self.delegate socketDidError:self errorCode:RTMPError_ReConnectTimeOut];
-            }
-        }
-    });
-}
-
-- (void)_reconnect
-{
-    [NSObject cancelPreviousPerformRequestsWithTarget:self];
-    
-    _isReconnecting = NO;
-    if (_isConnected)
-    {
-        return;
-    }
-    
-    _isReconnecting = NO;
-    if (_isConnected)
-    {
-        return;
-    }
-    if (_rtmp != NULL)
-    {
-        RTMP_Close(_rtmp);
-        RTMP_Free(_rtmp);
-        _rtmp = NULL;
-    }
-    _sendAudioHead = NO;
-    _sendVideoHead = NO;
-    
-    if (self.delegate && [self.delegate respondsToSelector:@selector(socketStatus:status:)])
-    {
-        [self.delegate socketStatus:self status:RTMPSocketRefresh];
-    }
-    
-    if (_rtmp != NULL)
-    {
-        RTMP_Close(_rtmp);
-        RTMP_Free(_rtmp);
-    }
-    
-    [self RTMP264_Connect:(char *)[_url.absoluteString cStringUsingEncoding:NSASCIIStringEncoding]];
 }
 
 #pragma - mark - LFStreamingBufferDelegate
