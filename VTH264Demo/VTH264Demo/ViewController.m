@@ -1296,7 +1296,7 @@ OSStatus handleInputBuffer(void *inRefCon, AudioUnitRenderActionFlags *ioActionF
             {
                 AudioStreamPacketDescription description;
                 memset(&description, 0, sizeof(AudioStreamPacketDescription));
-                description.mDataByteSize = 128;
+                description.mDataByteSize = (UInt32)(audioFrame.data.length);
                 description.mStartOffset = 0;
                 description.mVariableFramesInPacket = 0;
                 
